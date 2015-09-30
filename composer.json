@@ -1,0 +1,78 @@
+{
+    "name": "laravel/laravel",
+    "description": "The Laravel Framework.",
+    "keywords": ["framework", "laravel"],
+    "license": "MIT",
+    "type": "project",
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "require": {
+        "php": ">=5.5.9",
+        "laravel/framework": "5.1.*",
+        "barryvdh/laravel-ide-helper": "^2.1",
+        "doctrine/dbal": "^2.5",
+        "digitalnature/php-ref": "@dev",
+        "twbs/bootstrap": "v4.0.0-alpha",
+        "frameworks/jquery": "^2.1",
+        "ascension/php-surveymonkey": "^1.0",
+        "tedivm/stash": "^0.13.1",
+        "monolog/monolog": "^1.17",
+        "league/csv": "^7.1",
+        "barryvdh/laravel-debugbar": "^2.0",
+        "gbrock/laravel-table": "^0.2.4",
+        "league/period": "^3.0",
+        "witty/laravel-table-view": "dev-master",
+        "msieprawski/resource-table": "dev-master",
+        "rap2hpoutre/similar-text-finder": "dev-master",
+        "barryvdh/laravel-dompdf": "^0.6.0@dev"
+    },
+    "require-dev": {
+        "fzaninotto/faker": "~1.4",
+        "mockery/mockery": "0.9.*",
+        "phpunit/phpunit": "~4.0",
+        "phpspec/phpspec": "~2.1"
+    },
+    "autoload": {
+        "classmap": [
+            "database"
+        ],
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "classmap": [
+            "tests/TestCase.php"
+        ]
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "php artisan clear-compiled",
+            "php artisan ide-helper:generate",
+            "php artisan optimize",
+            "cp vendor/twbs/bootstrap/dist/css/bootstrap.min.css public/",
+            "cp vendor/frameworks/jquery/jquery.min.js public/",
+            "cp vendor/twbs/bootstrap/dist/js/bootstrap.js public/"
+        ],
+        "pre-update-cmd": [
+            "php artisan clear-compiled"
+        ],
+        "post-update-cmd": [
+            "php artisan clear-compiled",
+            "php artisan ide-helper:generate",
+            "php artisan optimize",
+            "cp vendor/twbs/bootstrap/dist/css/bootstrap.min.css public/",
+            "cp vendor/frameworks/jquery/jquery.min.js public/",
+            "cp vendor/twbs/bootstrap/dist/js/bootstrap.js public/"
+        ],
+        "post-root-package-install": [
+            "php -r \"copy('.env.example', '.env');\""
+        ],
+        "post-create-project-cmd": [
+            "php artisan key:generate"
+        ]
+    },
+    "config": {
+        "preferred-install": "dist"
+    }
+}

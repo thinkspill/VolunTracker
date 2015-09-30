@@ -1,0 +1,24 @@
+### JetBrains template
+# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion
+*.iml
+.idea/
+# IntelliJ
+/out/
+# JIRA plugin
+atlassian-ide-plugin.xml
+### Composer template
+composer.phar
+vendor/
+### Laravel template
+/bootstrap/compiled.php
+.env.*.php
+.env.php
+.env
+### Vagrant template
+.vagrant/
+
+/node_modules
+Homestead.yaml
+Homestead.json
+
+/database/seeds/*.csv
