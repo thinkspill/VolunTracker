@@ -15,10 +15,6 @@ class CreateFamiliesTable extends Migration
         Schema::create('families', function (Blueprint $table) {
             $table->increments('id');
             $table->timestamps();
-
-            $table->string('surname');
-            $table->string('familyHash');
-            $table->string('familyHashId');
         });
     }
 

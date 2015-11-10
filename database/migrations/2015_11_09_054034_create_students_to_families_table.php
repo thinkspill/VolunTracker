@@ -3,7 +3,7 @@
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
 
-class CreateTimeLogsTable extends Migration
+class CreateStudentsToFamiliesTable extends Migration
 {
     /**
      * Run the migrations.
@@ -12,16 +12,14 @@ class CreateTimeLogsTable extends Migration
      */
     public function up()
     {
-        Schema::create('time_logs', function (Blueprint $table) {
+        Schema::create('yrcs_students_to_families', function (Blueprint $table) {
             $table->increments('id');
-            $table->timestamps();
-
             $table->unsignedInteger('family_id');
-            $table->date('date');
-            $table->integer('hours');
-
-            $table->unique(['family_id', 'date', 'hours']);
+            $table->unsignedInteger('student_id');
+            $table->foreign('family_id')->references('id')->on('yrcs_families');
+            $table->foreign('student_id')->references('id')->on('yrcs_students');
         });
+
     }
 
     /**
@@ -31,6 +29,6 @@ class CreateTimeLogsTable extends Migration
      */
     public function down()
     {
-        Schema::drop('time_logs');
+        //
     }
 }

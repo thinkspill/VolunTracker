@@ -12,7 +12,10 @@ use App\YubaRiver;
 use Ascension\SurveyMonkey;
 use DB;
 use Exception;
+use Fhaculty\Graph\Graph;
 use Gbrock\Table\Table;
+use Graphp\GraphViz\GraphViz;
+use Illuminate\Database\QueryException;
 use League\Csv\Reader;
 use League\Period\Period;
 use Monolog\ErrorHandler;
@@ -58,32 +61,32 @@ class HomeController extends Controller
         $stu_table = (new Table)->create($students, ['first']);
         $stu_table->setView('tablecondensed');
         $stu_table->addColumn('last', 'Last', function ($model) {
-            return "<a href='/family/{$model->family_hash_id}'>{$model->last}</a>";
+            return "<a href='/family/{$model->family_id}'>{$model->last}</a>";
         });
 
         $guardians = YRCSGuardians::sorted()->paginate(10, ['*'], 'guardians');
         $guardian_table = (new Table)->create($guardians, ['relationship', 'first']);
         $guardian_table->setView('tablecondensed');
         $guardian_table->addColumn('last', 'Last', function ($model) {
-            return "<a href='/family/{$model->family_hash_id}'>{$model->last}</a>";
+            return "<a href='/family/{$model->family_id}'>{$model->last}</a>";
         });
 
         $families = YRCSFamilies::sorted()->paginate(10, ['*'], 'families');
         $fam_table = (new Table)->create($families, ['id']);
         $fam_table->setView('tablecondensed');
-        $fam_table->addColumn('family_hash_id', 'Family Hash', function ($model) {
-            return "<a href='/family/{$model->family_hash_id}'>{$model->family_hash_id}</a>";
+        $fam_table->addColumn('family_id', 'Family ID', function ($model) {
+            return "<a href='/family/{$model->family_id}'>{$model->family_id}</a>";
         });
         $fam_table->addColumn('hours', 'Hours', function ($model) {
-            $s = TimeLog::whereFamilyHashId($model->family_hash_id)->get();
+            $s = TimeLog::whereFamilyId($model->family_id)->get();
             return $s->sum('hours');
         });
 
         $hours = TimeLog::sorted()->paginate(10, ['*'], 'hours');
         $hours_table = (new Table)->create($hours, ['date', 'hours']);
         $hours_table->setView('tablecondensed');
-        $hours_table->addColumn('family_hash_id', 'Family Hash Id', function ($model) {
-            return "<a href='/family/{$model->family_hash_id}'>{$model->family_hash_id}</a>";
+        $hours_table->addColumn('family_id', 'Family ID', function ($model) {
+            return "<a href='/family/{$model->family_id}'>{$model->family_id}</a>";
         });
 
         $s_count = YRCSStudents::all()->count();
@@ -159,59 +162,127 @@ class HomeController extends Controller
         $d = $csv->fetchAll();
 
         foreach ($d as $i) {
-            ~r($i);
-            $y = YubaRiver::updateOrCreate(
-                [
-                    'student_last' => $i[0],
-                    'student_first' => $i[1],
-                    'parent_last' => $i[5],
-                    'parent_first' => $i[4],
-                ],
-                [
-                    'student_last' => $i[0],
-                    'student_first' => $i[1],
-                    'parent_last' => $i[5],
-                    'parent_first' => $i[4],
-                    'grade' => $i[2],
-                    'relationship' => $i[3],
-                    'email' => $i[7],
-                    'phone' => $i[8],
-                    'child_lives_with' => $i[9],
-                    'city' => $i[10],
-                    'state' => $i[11],
-                    'address' => $i[12],
-                    'zip' => $i[13],
-                ]);
-            $y->save();
+            try {
+                $y = YubaRiver::updateOrCreate(
+                    [
+                        'student_last' => $i[0],
+                        'student_first' => $i[1],
+                        'parent_last' => $i[5],
+                        'parent_first' => $i[4],
+                    ],
+                    [
+                        'student_last' => $i[0],
+                        'student_first' => $i[1],
+                        'parent_last' => $i[5],
+                        'parent_first' => $i[4],
+                        'grade' => $i[2],
+                        'relationship' => $i[3],
+                        'email' => $i[7],
+                        'phone' => $i[8],
+                        'child_lives_with' => $i[9],
+                        'city' => $i[10],
+                        'state' => $i[11],
+                        'address' => $i[12],
+                        'zip' => $i[13],
+                    ]);
+                $y->save();
+            } catch (QueryException $e) {
+
+            }
+
         }
     }
 
-    public function generateFamilyHashes()
+    public function graph()
     {
-        $this->generateStudentHashes();
-        $this->generateGuardianHashes();
+        $school['students'] = [];
+        $school['guardians'] = [];
+        $graph = new Graph();
+        $guardians = YRCSGuardians::all();
+//        $a = $guardians->random(20);
+        foreach ($guardians as $guardian) {
+            $family_unit['guardians'] = [$guardian->id];
+            $family_unit['students'] = [];
+            /** @var YRCSGuardians $guardian */
+            $guardian_name = $guardian->first . ' ' . $guardian->last;
+            $school['guardians'][$guardian->id] = $graph->createVertex($guardian_name, true);
+            $school['guardians'][$guardian->id]->setAttribute('graphviz.color', 'red');
+            foreach ($guardian->students()->get() as $student) {
+                if (!in_array($student->id, $family_unit['students'])) {
+                    $family_unit['students'][] = $student->id;
+                }
+                $student_name = $student->first . ' ' . $student->last;
+                $school['students'][$student->id] = $graph->createVertex($student_name, true);
+                $school['students'][$student->id]->setAttribute('graphviz.color', 'green');
+                $edge = $school['guardians'][$guardian->id]->createEdgeTo($school['students'][$student->id]);
+                $this->setRelationshipEdgeColor($guardian, $edge);
+                $other_guardians = $student->guardians()->get();
+                foreach ($other_guardians as $other_guardian) {
+                    $gname = $other_guardian->first . ' ' . $other_guardian->last;
+                    if ($gname === $guardian_name) {
+                        continue;
+                    }
+                    if (!in_array($other_guardian->id, $family_unit['guardians'])) {
+                        $family_unit['guardians'][] = $other_guardian->id;
+                    }
+                    $school['guardians'][$other_guardian->id] = $graph->createVertex($gname, true);
+                    $school['guardians'][$other_guardian->id]->setAttribute('graphviz.color', 'red');
+                    $edge = $school['guardians'][$other_guardian->id]->createEdgeTo($school['students'][$student->id]);
+                    $this->setRelationshipEdgeColor($other_guardian, $edge);
+                }
+            }
+
+            $this->saveFamilyUnit($family_unit);
+        }
+
+//        $graphviz = new GraphViz();
+//        $data = $graphviz->createImageData($graph);
+//        $image = \imagecreatefromstring($data);
+//        header('Content-Type: image/png');
+//        \imagepng($image);
+//        \imagedestroy($image);
+//        exit;
+
     }
 
-    public function generateStudentHashes()
+    public function generateFamilies()
+    {
+        $this->generateStudents();
+        $this->generateGuardians();
+        $this->generateStudentsToGuardiansTable();
+    }
+
+    private function generateStudentsToGuardiansTable()
+    {
+        /** @var YRCSStudents $students */
+        $students = YRCSStudents::all();
+
+        foreach ($students as $student) {
+            /** @var YubaRiver $families */
+            $families = YubaRiver::whereStudentFirst($student->first)->whereStudentLast($student->last)->get(['parent_first', 'parent_last']);
+            foreach ($families as $family) {
+                /** @var YubaRiver $family */
+                $guardian = YRCSGuardians::whereFirst($family->parent_first)->whereLast($family->parent_last)->get(['id'])->first();
+//                dd($guardian->id);
+                try {
+                    $student->guardians()->attach($guardian->id);
+                } catch (\Exception $e) {
+                    r($e->getMessage());
+                }
+            }
+        }
+    }
+
+    public function generateStudents()
     {
         $users = DB::table('yuba_river')
 //            ->select(DB::raw('group_concat(distinct SUBSTRING(parent_last, 3), SUBSTRING(parent_first, 3) SEPARATOR "") as family_hash'))
-            ->select(DB::raw("student_first, student_last, parent_first, parent_last, group_concat(distinct SUBSTRING(parent_last, 1, 3), SUBSTRING(parent_first, 1, 3) SEPARATOR '') as family_hash, group_concat(distinct parent_last, parent_first SEPARATOR '') as family_hash_2"))
+            ->select(DB::raw('student_first, student_last, parent_first, parent_last'))
             ->groupBy('student_first', 'student_last')
             ->get();
 
-//        dd($users);
-
         foreach ($users as $u) {
-            $lower = strtolower($u->family_hash);
-            $replace = str_replace([',', ' ', '.', "'"], '', $lower);
-            $split = str_split($replace);
-            $h = array_unique($split);
-            sort($h);
-            $u->family_hash_3 = trim(implode('', $h));
-//            r($u);
             $this->saveStudent($u);
-            $this->saveFamilyHash($u);
         }
     }
 
@@ -220,58 +291,38 @@ class HomeController extends Controller
      */
     private function saveStudent($u)
     {
-        $s = YRCSStudents::updateOrCreate(
-            [
-                'first' => $u->student_first, 'last' => $u->student_last, 'family_hash_id' => $u->family_hash_3
-            ],
-            [
-                'first' => $u->student_first, 'last' => $u->student_last, 'family_hash_id' => $u->family_hash_3
-            ]
-        );
         try {
-            $s->save();
-        } catch (\Exception $e) {
-            r($e);
-        }
-    }
-
-    /**
-     * @param $u
-     */
-    private function saveFamilyHash($u)
-    {
-        $s = YRCSFamilies::updateOrCreate(
-            [
-                'family_hash_id' => $u->family_hash_3
-            ],
-            [
-                'family_hash_id' => $u->family_hash_3
-            ]
-        );
-        try {
-            $s->save();
-        } catch (\Exception $e) {
-            r($e);
-        }
-    }
-
-    public function generateGuardianHashes()
-    {
-        $users = DB::table('yuba_river')
-            ->select(DB::raw("student_first, student_last, parent_first, parent_last, relationship"))
-            ->get();
-        foreach ($users as $u) {
-            /** @var YRCSStudents $s */
-            $s = YRCSStudents::whereFirst($u->student_first)->whereLast($u->student_last)->first()->family_hash_id;
-            $p = YRCSGuardians::updateOrCreate(
+            $s = YRCSStudents::updateOrCreate(
                 [
-                    'first' => $u->parent_first, 'last' => $u->parent_last
+                    'first' => $u->student_first, 'last' => $u->student_last
                 ],
                 [
-                    'first' => $u->parent_first, 'last' => $u->parent_last, 'family_hash_id' => $s, 'relationship' => $u->relationship
+                    'first' => $u->student_first, 'last' => $u->student_last
                 ]
             );
+            $s->save();
+        } catch (\Exception $e) {
+//            r($e);
+        }
+    }
+
+    public function generateGuardians()
+    {
+        $users = DB::table('yuba_river')
+            ->select(DB::raw('student_first, student_last, parent_first, parent_last, relationship'))
+            ->get();
+        foreach ($users as $u) {
+            /** @var YubaRiver $u */
             try {
+
+                $p = YRCSGuardians::updateOrCreate(
+                    [
+                        'first' => $u->parent_first, 'last' => $u->parent_last
+                    ],
+                    [
+                        'first' => $u->parent_first, 'last' => $u->parent_last, 'relationship' => $u->relationship
+                    ]
+                );
                 $p->save();
             } catch (Exception $e) {
 
@@ -288,26 +339,28 @@ class HomeController extends Controller
 //        ~r($log);
 
         foreach ($log as $item) {
-            $fam = Family::firstOrCreate(['surname' => $item['family']]);
-            if (isset($fam->id)) {
-                echo '<br>' . $fam->id;
-                $attributes = [
+            try {
+                $fam = Family::firstOrCreate(['id' => $item['family_id']]);
+                if (isset($fam->id)) {
+                    echo '<br>' . $fam->id;
+                    $attributes = [
 //                    'family_id' => $fam->id,
-                    'hours' => $item['hours'],
-                    'date' => $item['date'],
-                    'family_hash_id' => $item['family_hash_id'],
-                ];
-                r($attributes);
-                $log = TimeLog::create($attributes);
-                try {
+                        'hours' => $item['hours'],
+                        'date' => $item['date'],
+                        'family_id' => $item['family_id'],
+                    ];
+                    r($attributes);
+                    $log = TimeLog::create($attributes);
+
                     $log->save();
-                } catch (Exception $e) {
 
-                }
-
-            } else {
+                } else {
 //                rt($fam->attributesToArray());
+                }
+            } catch (Exception $e) {
+
             }
+
         }
 //        r($log);
 //        r($this->aLookup, $this->qLookup, $this->rLookup, $questions, $responses);
@@ -478,7 +531,7 @@ class HomeController extends Controller
                 'family' => $familyLastName,
                 'class' => $class,
                 'hours' => $hours,
-                'family_hash_id' => $f
+                'family_id' => $f
             ];
         }
         return $log;
@@ -499,14 +552,14 @@ class HomeController extends Controller
             }
             if ($f === 1) {
                 r("found one, returning");
-                return YRCSGuardians::whereLast($familyName)->first()->family_hash_id;
+                return YRCSGuardians::whereLast($familyName)->first()->family_id;
             }
             if ($f > 1) {
                 r(["found more than one famname:", $f]);
                 $all = YRCSGuardians::whereLast($familyName)->get();
                 $found = [];
                 foreach ($all as $a) {
-                    $found[$a->family_hash_id] = '';
+                    $found[$a->family_id] = '';
                 }
                 if (count($found) > 1) {
                     r(["found more than one again:", $found]);
@@ -516,7 +569,7 @@ class HomeController extends Controller
                         r([$first, $familyName, $c]);
                         if ($c === 1) {
                             $a = YRCSGuardians::whereFirst($first)->whereLast($familyName)->first();
-                            return $a->family_hash_id;
+                            return $a->family_id;
                         }
                     }
 
@@ -526,14 +579,14 @@ class HomeController extends Controller
                         r([$first, $last, $c]);
                         if ($c === 1) {
                             $a = YRCSGuardians::whereFirst($first)->whereLast($last)->first();
-                            return $a->family_hash_id;
+                            return $a->family_id;
                         }
                     }
                     r('more than one family matches ' . $familyName . ': ' . print_r($found, true));
 //                    return 'more than one family matches ' . $familyName . ': ' . print_r($found, true);
                 }
                 r(["found, returning:", $found]);
-                return $a->family_hash_id;
+                return $a->family_id;
             }
         }
         r('not found');
@@ -590,5 +643,58 @@ class HomeController extends Controller
 //            ~r($title, $id, $surveyDetails);
             sleep(1);
         }
+    }
+
+    /**
+     * @param $guardian
+     * @param $edge
+     */
+    private function setRelationshipEdgeColor($guardian, $edge)
+    {
+        $rel = $guardian->relationship;
+        switch ($rel) {
+            case 'Father':
+                $color = 'blue';
+                break;
+            case 'Stepfather':
+                $color = 'orange';
+                break;
+            case 'Grandfather':
+                $color = 'brown';
+                break;
+            case 'Mother':
+                $color = 'purple';
+                break;
+            case 'Stepmother':
+                $color = 'yellow';
+                break;
+            case 'Grandmother':
+                $color = 'black';
+                break;
+            default:
+                $color = 'gray';
+                break;
+        }
+        $edge->setAttribute('graphviz.color', $color);
+    }
+
+    private function saveFamilyUnit($family_unit)
+    {
+        $fam = YRCSFamilies::create();
+        $fam->save();
+
+        foreach ($family_unit['guardians'] as $g) {
+            /** @var YRCSGuardians $guardian */
+            $guardian = YRCSGuardians::find($g);
+            $guardian->family()->associate($fam);
+            $guardian->save();
+        }
+        foreach ($family_unit['students'] as $s) {
+            /** @var YRCSStudents $guardian */
+            $student = YRCSStudents::find($s);
+            $student->family()->associate($fam);
+            $student->save();
+        }
+        r($family_unit);
     }
 }

@@ -15,11 +15,6 @@ class CreateYrcsFamiliesTable extends Migration
         Schema::create('yrcs_families', function (Blueprint $table) {
             $table->increments('id');
             $table->timestamps();
-
-            $table->string('family_hash');
-            $table->string('family_hash_id');
-
-            $table->unique(['family_hash_id']);
         });
 
     }

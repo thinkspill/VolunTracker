@@ -94,7 +94,7 @@ class ReportController extends Controller
             $hoursLoaded = $hours->getEager();
             if (!count($hoursLoaded)) {
                 $d = [
-                    'family_hash' => $f->family_hash_id,
+                    'family_id' => $f->family_id,
                     'guardians' => $f->guardians()->get(['first', 'last', 'relationship'])->toArray(),
                     'students' => $f->students()->get(['first', 'last'])->toArray(),
                     'hours' => 0,
@@ -176,7 +176,7 @@ class ReportController extends Controller
     private function buildFamArray($f, $fam_sum, $expected_hours)
     {
         $d = [
-            'family_hash' => $f->family_hash_id,
+            'family_id' => $f->family_id,
             'guardians' => $f->guardians()->get(['first', 'last', 'relationship'])->toArray(),
             'students' => $f->students()->get(['first', 'last'])->toArray(),
             'hours' => $fam_sum,

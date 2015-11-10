@@ -15,12 +15,12 @@ class CreateYrcsGuardiansTable extends Migration
         Schema::create('yrcs_guardians', function (Blueprint $table) {
             $table->increments('id');
             $table->timestamps();
-
+            $table->unsignedInteger('family_id');
+//            $table->foreign('family_id')->references('id')->on('yrcs_families');
             $table->string('first');
             $table->string('last');
             $table->string('relationship');
-            $table->string('family_hash_id');
-            $table->unique(['first', 'last', 'family_hash_id']);
+            $table->unique(['first', 'last']);
         });
     }
 

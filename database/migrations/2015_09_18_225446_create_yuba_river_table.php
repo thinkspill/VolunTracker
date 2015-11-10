@@ -23,7 +23,6 @@ class CreateYubaRiverTable extends Migration
             $table->string('grade');
             $table->string('relationship');
             $table->string('city');
-            $table->string('family_hash');
 
             $table->unique(['parent_last', 'parent_first', 'student_first']);
         });

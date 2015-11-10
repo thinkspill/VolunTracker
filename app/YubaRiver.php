@@ -30,8 +30,6 @@ use Illuminate\Database\Eloquent\Model;
  * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereRelationship($value)
  * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereCity($value)
  * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver sorted($field = false, $direction = false)
- * @property string $family_hash
- * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereFamilyHash($value)
  */
 class YubaRiver extends Model
 {

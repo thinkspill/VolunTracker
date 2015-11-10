@@ -52,20 +52,20 @@ class FamilyController extends Controller
      */
     public function show($id)
     {
-        $students = YRCSStudents::whereFamilyHashId($id)->sorted()->paginate();
+        $students = YRCSStudents::whereFamilyId($id)->sorted()->paginate();
 
-        $stu_table = (new Table)->create($students, ['first', 'last', 'family_hash_id']);
+        $stu_table = (new Table)->create($students, ['first', 'last', 'family_id']);
         $stu_table->setView('tablecondensed');
 
-        $guardians = YRCSGuardians::whereFamilyHashId($id)->sorted()->paginate();
-        $guardian_table = (new Table)->create($guardians, ['first', 'last', 'relationship', 'family_hash_id']);
+        $guardians = YRCSGuardians::whereFamilyId($id)->sorted()->paginate();
+        $guardian_table = (new Table)->create($guardians, ['first', 'last', 'relationship', 'family_id']);
         $guardian_table->setView('tablecondensed');
 
-        $families = YRCSFamilies::whereFamilyHashId($id)->sorted()->paginate();
-        $fam_table = (new Table)->create($families, ['family_hash_id']);
+        $families = YRCSFamilies::whereFamilyId($id)->sorted()->paginate();
+        $fam_table = (new Table)->create($families, ['family_id']);
         $fam_table->setView('tablecondensed');
 
-        $hours = TimeLog::whereFamilyHashId($id)->sorted()->paginate();
+        $hours = TimeLog::whereFamilyId($id)->sorted()->paginate();
         $hours_table = (new Table)->create($hours, ['date', 'hours']);
         $hours_table->setView('tablecondensed');
 
