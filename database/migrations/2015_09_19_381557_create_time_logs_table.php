@@ -20,6 +20,7 @@ class CreateTimeLogsTable extends Migration
             $table->date('date');
             $table->integer('hours');
 
+            $table->foreign('family_id')->references('id')->on('yrcs_families');
             $table->unique(['family_id', 'date', 'hours']);
         });
     }

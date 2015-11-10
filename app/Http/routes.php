@@ -3,7 +3,7 @@
 Route::get('/', 'Home\HomeController@index');
 Route::get('/csv', 'Home\HomeController@csv');
 Route::get('/hash', 'Home\HomeController@generateFamilies');
-Route::get('/graph', 'Home\HomeController@graph');
+Route::get('/discover', 'Home\HomeController@discoverFamilyUnits');
 Route::get('/sync', 'Home\HomeController@syncSurveyMonkey');
 Route::get('/pdf', 'Home\ReportController@pdf');
 Route::get('/report', 'Home\ReportController@index');

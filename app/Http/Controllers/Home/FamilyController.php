@@ -61,7 +61,7 @@ class FamilyController extends Controller
         $guardian_table = (new Table)->create($guardians, ['first', 'last', 'relationship', 'family_id']);
         $guardian_table->setView('tablecondensed');
 
-        $families = YRCSFamilies::whereFamilyId($id)->sorted()->paginate();
+        $families = YRCSFamilies::whereId($id)->sorted()->paginate();
         $fam_table = (new Table)->create($families, ['family_id']);
         $fam_table->setView('tablecondensed');
 
