@@ -702,8 +702,8 @@ class HomeController extends Controller
             }
 
             $firstName = false;
-            if (!empty($this->getYourFirstNameFIeld($r))) {
-                $firstName = $this->getYourFirstNameFIeld($r);
+            if (!empty($this->getYourFirstNameField($r))) {
+                $firstName = $this->getYourFirstNameField($r);
             }
             $lastName = false;
             if (!empty($this->getYourLastNameField($r))) {
@@ -777,7 +777,7 @@ class HomeController extends Controller
      * @param $r
      * @return mixed
      */
-    private function getYourFirstNameFIeld($r)
+    private function getYourFirstNameField($r)
     {
         return $r['Tell us about yourself']['Your First Name'];
     }
