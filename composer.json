@@ -25,7 +25,8 @@
         "msieprawski/resource-table": "dev-master",
         "rap2hpoutre/similar-text-finder": "dev-master",
         "barryvdh/laravel-dompdf": "^0.6.0@dev",
-        "graphp/graphviz": "dev-master"
+        "graphp/graphviz": "dev-master",
+        "davedevelopment/stiphle": "dev-master"
     },
     "require-dev": {
         "fzaninotto/faker": "~1.4",

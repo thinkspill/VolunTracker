@@ -4,8 +4,8 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "hash": "c75b6b0cee9bff09c1f29106de836a66",
-    "content-hash": "85afbf62e550505c88131e3c7c918cb7",
+    "hash": "be5a50ea2c5bf591346e5a6518e30be5",
+    "content-hash": "62375ef559f84c34803ac3e93b08da7a",
     "packages": [
         {
             "name": "ascension/php-surveymonkey",
@@ -364,6 +364,53 @@
             "time": "2015-07-23 00:54:12"
         },
         {
+            "name": "davedevelopment/stiphle",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/davedevelopment/stiphle.git",
+                "reference": "ac380c263416a2e7bb8a13dc15ca41bbb6609610"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/davedevelopment/stiphle/zipball/ac380c263416a2e7bb8a13dc15ca41bbb6609610",
+                "reference": "ac380c263416a2e7bb8a13dc15ca41bbb6609610",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3.1"
+            },
+            "suggest": {
+                "doctrine/cache": "~1.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-0": {
+                    "Stiphle": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Dave Marshall",
+                    "email": "dave.marshall@atstsolutions.co.uk",
+                    "homepage": "http://davedevelopment.co.uk"
+                }
+            ],
+            "description": "Simple rate limiting/throttling for php",
+            "homepage": "http://github.com/davedevelopment/stiphle",
+            "keywords": [
+                "rate limit",
+                "rate limiting",
+                "throttle",
+                "throttling"
+            ],
+            "time": "2013-07-03 09:27:06"
+        },
+        {
             "name": "digitalnature/php-ref",
             "version": "dev-master",
             "source": {
@@ -373,7 +420,7 @@
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/digitalnature/php-ref/zipball/19be18c7dc8dc958f53bece371815adffb40886c",
+                "url": "https://api.github.com/repos/digitalnature/php-ref/zipball/6aa68f42c548af3facdd5546233160e34c05c6eb",
                 "reference": "058eb00ba884ad2018d1fb74a8744404c1801e85",
                 "shasum": ""
             },
@@ -4296,7 +4343,8 @@
         "msieprawski/resource-table": 20,
         "rap2hpoutre/similar-text-finder": 20,
         "barryvdh/laravel-dompdf": 20,
-        "graphp/graphviz": 20
+        "graphp/graphviz": 20,
+        "davedevelopment/stiphle": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

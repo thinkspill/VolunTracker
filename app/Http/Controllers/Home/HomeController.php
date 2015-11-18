@@ -15,29 +15,52 @@ use Exception;
 use Fhaculty\Graph\Graph;
 use Gbrock\Table\Table;
 use Graphp\GraphViz\GraphViz;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use League\Csv\Reader;
 use League\Period\Period;
 use Monolog\ErrorHandler;
 use Monolog\Formatter\HtmlFormatter;
+use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
 use Monolog\Logger;
 use ref;
 use Stash\Driver\FileSystem;
 use Stash\Pool;
+use Stiphle\Throttle\LeakyBucket;
+use Symfony\Component\Debug\Exception\FatalErrorException;
 
 class HomeController extends Controller
 {
-    private $volunteerHourSurveyId = '66119268';
+    private $volunteerHourSurveyId = '';
+    private $volunteerHourSurveyId2 = '';
+    private $allSurveyIDs = [];
+    private $currentSurveyId = '';
 
     private $qLookup, $aLookup, $rLookup = [];
 
     private $SM, $pool;
 
+    private $stats;
+
+    private $throttle, $throttle_id;
+
     public function __construct()
     {
         ref::config('expLvl', -1);
         ref::config('maxDepth', 0);
+
+        $this->volunteerHourSurveyId = env('SURVEY_MONKEY_SURVEY_ID_1');
+        $this->volunteerHourSurveyId2 = env('SURVEY_MONKEY_SURVEY_ID_2');
+
+        $this->allSurveyIDs = [
+            $this->volunteerHourSurveyId,
+            $this->volunteerHourSurveyId2
+        ];
+
+        $this->throttle = new LeakyBucket;
+        $this->throttle_id = 'sm';
+
 
         if (!ini_get('auto_detect_line_endings')) {
             ini_set('auto_detect_line_endings', '1');
@@ -47,10 +70,10 @@ class HomeController extends Controller
         $driver = new FileSystem();
         $this->pool = new Pool($driver);
         $logger = new Logger('log');
-        $logger->pushHandler((new ErrorLogHandler())->setFormatter(new HtmlFormatter()));
+        $logger->pushHandler((new ErrorLogHandler())->setFormatter(new LineFormatter()));
         $this->pool->setLogger($logger);
         ErrorHandler::register($logger);
-        $logger->log('info', 'test');
+//        $logger->log('info', 'test');
 //        $this->pool->flush();
     }
 
@@ -152,7 +175,21 @@ class HomeController extends Controller
 
     public function dev()
     {
-//        $r = $this->processResponses([]);
+        foreach ($this->SM->getSurveyList()['data']['surveys'] as $list) {
+            $id = $list['survey_id'];
+            r($this->surveyMonkeyGetSurveyDetails($id));
+        }
+    }
+
+    private function surveyMonkeyGetSurveyDetails($surveyID)
+    {
+        $this->throttleSM();
+        return $this->SM->getSurveyDetails($surveyID)['data'];
+    }
+
+    private function throttleSM()
+    {
+        $this->throttle->throttle($this->throttle_id, 2, 2000);;
     }
 
     public function csv()
@@ -452,51 +489,30 @@ class HomeController extends Controller
 
     public function syncSurveyMonkey()
     {
-        $questions = $this->getQuestions();
-        $responses = $this->getResponses();
-        $log = $this->getLog($responses);
-//        ~r($log);
-
-        foreach ($log as $item) {
-            try {
-                $fam = Family::firstOrCreate(['id' => $item['family_id']]);
-                if (isset($fam->id)) {
-                    echo '<br>' . $fam->id;
-                    $attributes = [
-//                    'family_id' => $fam->id,
-                        'hours' => $item['hours'],
-                        'date' => $item['date'],
-                        'family_id' => $item['family_id'],
-                    ];
-                    r($attributes);
-                    $log = TimeLog::create($attributes);
-
-                    $log->save();
-
-                } else {
-//                rt($fam->attributesToArray());
-                }
-            } catch (Exception $e) {
-
-            }
-
+        foreach ($this->allSurveyIDs as $surveyID) {
+            $this->currentSurveyId = $surveyID;
+            $questions = $this->getQuestions($surveyID);
+            $responses = $this->getResponses($surveyID);
+            $log = $this->getLog($responses);
+            $this->processLog($log);
         }
-//        r($log);
-//        r($this->aLookup, $this->qLookup, $this->rLookup, $questions, $responses);
+        dd($this->stats);
+
     }
 
     /**
      * @return array|mixed|null
      */
-    private function getQuestions()
+    private function getQuestions($surveyID)
     {
-        $item = $this->pool->getItem('/surveyDetails');
+        $item = $this->pool->getItem('/surveyDetails/' . $surveyID);
         $surveyDetails = $item->get();
         r($item->isMiss());
         if ($item->isMiss()) {
             echo '<br>regenerating questions';
             $item->lock();
-            $surveyDetails = $this->SM->getSurveyDetails($this->volunteerHourSurveyId)['data'];
+
+            $surveyDetails = $this->surveyMonkeyGetSurveyDetails($surveyID);
             $item->set($surveyDetails);
         }
         $questions = $this->extractQuestions($surveyDetails);
@@ -550,25 +566,38 @@ class HomeController extends Controller
     /**
      * @return array
      */
-    private function getResponses()
+    private function getResponses($surveyID)
     {
-        $item = $this->pool->getItem('/reslist');
-        $list = [];
-        $reslist = $item->get();
+        $item = $this->pool->getItem('/reslist/' . $surveyID);
+        $respondentsToRequest = [];
+        $respondentList = $item->get();
         r($item->isMiss());
         if ($item->isMiss()) {
             echo '<br>regenerating responses';
             $item->lock();
-            $reslist = $this->SM->getRespondentList($this->volunteerHourSurveyId, ['fields' => ['date_modified']]);
-            $item->set($reslist);
+            $respondentList = $this->surveyMonkeyGetRespondentList($surveyID, ['fields' => ['date_modified']]);
+            $item->set($respondentList);
         }
-        foreach ($reslist['data']['respondents'] as $r) {
+
+        foreach ($respondentList['data']['respondents'] as $r) {
             $this->rLookup[$r['respondent_id']] = $r['date_modified'];
-            $list[] = $r['respondent_id'];
+            $respondentsToRequest[] = $r['respondent_id'];
         }
-        $responses = $this->SM->getResponses($this->volunteerHourSurveyId, $list)['data'];
-        $responses = $this->processResponses($responses);
+        $responses = $this->surveyMonkeyGetResponses($surveyID, $respondentsToRequest);
+        $responses = $this->processResponses($responses['data']);
         return $responses;
+    }
+
+    private function surveyMonkeyGetRespondentList($surveyID, $array)
+    {
+        $this->throttleSM();
+        return $this->SM->getRespondentList($surveyID, $array);
+    }
+
+    private function surveyMonkeyGetResponses($surveyID, $respondentsToRequest)
+    {
+        $this->throttleSM();
+        return $this->SM->getResponses($surveyID, $respondentsToRequest);
     }
 
     private function processResponses($responses)
@@ -581,9 +610,15 @@ class HomeController extends Controller
                 $qid = $question['question_id'];
                 foreach ($question['answers'] as $ans) {
                     if (isset($ans['text'])) {
-                        $resp[$this->t($rid, 'r')][$this->t($qid, 'q')][$this->t($ans['row'], 'a')] = $ans['text'];
+                        $respondentID = $this->t($rid, 'r');
+                        $questionID = $this->t($qid, 'q');
+                        $answerID = $this->t($ans['row'], 'a');
+                        $resp[$respondentID][$questionID][$answerID] = $ans['text'];
                     } elseif (isset($ans['row'])) {
-                        $resp[$this->t($rid, 'r')][$this->t($qid, 'q')][] = $this->t($ans['row'], 'a');
+                        $respondentID = $this->t($rid, 'r');
+                        $questionID = $this->t($qid, 'q');
+                        $answerID = $this->t($ans['row'], 'a');
+                        $resp[$respondentID][$questionID][] = $answerID;
                     }
                 }
             }
@@ -599,15 +634,19 @@ class HomeController extends Controller
     private function translate($id, $type)
     {
         if ($type === 'a') {
-            $return = $this->aLookup[$id];
-            $return = preg_replace('/[()]/', '', $return);
-            return $return;
+            if (isset($this->aLookup[$id])) {
+                $return = $this->aLookup[$id];
+                $return = preg_replace('/[()]/', '', $return);
+                return $return;
+            } else {
+//                r($id, $type);
+            }
         }
         if ($type === 'q') {
-            return $this->qLookup[$id];
+            return isset($this->qLookup[$id]) ? $this->qLookup[$id] : '';
         }
         if ($type === 'r') {
-            return $this->rLookup[$id];
+            return isset($this->rLookup[$id]) ? $this->rLookup[$id] : '';
         }
         return '';
     }
@@ -621,30 +660,58 @@ class HomeController extends Controller
         $log = [];
         $hours = 0;
         foreach ($responses as $date => $r) {
-//            r($date, $r);
-            if (!empty($r['How many hours did you volunteer?'][0])) {
-                $hours = $r['How many hours did you volunteer?'][0];
-            } elseif (!empty($r['How many hours did you volunteer?']['Other please specify'])) {
-                $hours = $r['How many hours did you volunteer?']['Other please specify'];
+
+            $childFirst = $childLast = '';
+            $childNameField = 'Child\'s First and Last Name (this is how we identify your family, only one child\'s name is needed)';
+            $childFirstNameField = 'Child\'s First Name';
+            $childLastNameField = 'Child\'s Last Name';
+            if (isset($r[$childNameField], $r[$childNameField][$childFirstNameField], $r[$childNameField][$childLastNameField])) {
+                $childFirst = $r[$childNameField][$childFirstNameField];
+                $childLast = $r[$childNameField][$childLastNameField];
+
+                if ($childFirst === 'ChildFirstName') {
+                    continue;
+                }
+            }
+
+
+            $howManyHoursField = $this->getHowManyHoursField();
+//            r($howManyHoursField, $r[$howManyHoursField]);
+
+            if (isset($r[$howManyHoursField][0])) {
+                $hours = $r[$howManyHoursField][0];
+            } elseif (isset($r[$howManyHoursField][""])) {
+                $hours = $r[$howManyHoursField][""];
+            } elseif (isset($r[$howManyHoursField]['Other please specify'])) {
+                $hours = $r[$howManyHoursField]['Other please specify'];
+            } else {
+                $this->dl("No hours field found");
+                r([$r[$howManyHoursField]]);
+                if (isset($r[$howManyHoursField][0])) {
+                    $this->dl("Dumping blah blah");
+                    r([$r[$howManyHoursField][0]]);
+                }
+                continue;
             }
 
             $familyLastName = '';
-            if (!empty($r['Tell us about yourself']['Family Last Name'])) {
-                $familyLastName = $r['Tell us about yourself']['Family Last Name'];
-            } elseif (!empty($r['Tell us about yourself']['Your Last Name'])) {
-                $familyLastName = $r['Tell us about yourself']['Your Last Name'];
+            if (!empty($this->getFamilyLastNameField($r))) {
+                $familyLastName = $this->getFamilyLastNameField($r);
+            } elseif (!empty($this->getYourLastNameField($r))) {
+                $familyLastName = $this->getYourLastNameField($r);
             }
 
             $firstName = false;
-            if (!empty($r['Tell us about yourself']['Your First Name'])) {
-                $firstName = $r['Tell us about yourself']['Your First Name'];
+            if (!empty($this->getYourFirstNameFIeld($r))) {
+                $firstName = $this->getYourFirstNameFIeld($r);
             }
             $lastName = false;
-            if (!empty($r['Tell us about yourself']['Your Last Name'])) {
-                $lastName = $r['Tell us about yourself']['Your Last Name'];
+            if (!empty($this->getYourLastNameField($r))) {
+                $lastName = $this->getYourLastNameField($r);
             }
-            $f = $this->detectFamily($familyLastName, $firstName, $lastName);
-            $class = $r['What class/program is one of your children in?']['0'];
+            $f = $this->detectFamily($familyLastName, $firstName, $lastName, $childFirst, $childLast);
+            $classGradeField = $this->getClassGradeField();
+            $class = $r[$classGradeField]['0'];
             $log[] = [
                 'date' => $date,
                 'family' => $familyLastName,
@@ -656,61 +723,177 @@ class HomeController extends Controller
         return $log;
     }
 
-    private function detectFamily($familyName, $first, $last)
+    /**
+     * @return string
+     */
+    private function getHowManyHoursField()
     {
+        switch ($this->currentSurveyId) {
+            case $this->volunteerHourSurveyId:
+                return 'How many hours did you volunteer?';
+            case $this->volunteerHourSurveyId2:
+                return 'How many hours did you volunteer? Please only use numerical values and round your total up or down to enter a whole number.';
+        }
+    }
+
+    private function dl($debugdata, $file = __FILE__, $line = __LINE__)
+    {
+//        r(['DebugLog: ' . basename($file) . ':' . $line => $debugdata]);
+        r(['DebugLog' => $debugdata]);
+    }
+
+    /**
+     * @param $r
+     * @return mixed
+     */
+    private function getFamilyLastNameField($r)
+    {
+        switch ($this->currentSurveyId) {
+            case $this->volunteerHourSurveyId:
+                if (isset($r['Tell us about yourself']['Family Last Name'])) {
+                    return $r['Tell us about yourself']['Family Last Name'];
+                } elseif (isset($r['Tell us about yourself']['Your Last Name'])) {
+                    return $r['Tell us about yourself']['Your Last Name'];
+                } else return false;
+            case $this->volunteerHourSurveyId2:
+                if (isset($r['Tell us about yourself']['Family Last Name'])) {
+                    return $r['Tell us about yourself']['Family Last Name'];
+                } elseif (isset($r['Tell us about yourself']['Your Last Name'])) {
+                    return $r['Tell us about yourself']['Your Last Name'];
+                } else return false;
+        }
+    }
+
+    /**
+     * @param $r
+     * @return mixed
+     */
+    private function getYourLastNameField($r)
+    {
+        return $r['Tell us about yourself']['Your Last Name'];
+    }
+
+    /**
+     * @param $r
+     * @return mixed
+     */
+    private function getYourFirstNameFIeld($r)
+    {
+        return $r['Tell us about yourself']['Your First Name'];
+    }
+
+    private function detectFamily($familyName, $first, $last, $childFirst, $childLast)
+    {
+
+        $possiblyFoundID = $this->getStudentsWithExactMatchName($childFirst, $childLast);
+        if ($possiblyFoundID) {
+            $this->dl("Found ID $possiblyFoundID");
+            return $possiblyFoundID;
+        }
+
+        $this->dl("No clear match for student name {$childFirst} {$childLast}, checking Guardians...");
+
+
         $names = $this->detectDelimiter($familyName);
         $fnames = $this->detectDelimiter($first);
         $lnames = $this->detectDelimiter($last);
 
-        foreach ($names as $familyName) {
-            r("Looking for " . $familyName);
-            $f = YRCSGuardians::whereLast($familyName)->count();
-            if ($f === 0) {
-                r("continuing, nothing found for " . $familyName, $first, $last);
-                continue;
-            }
-            if ($f === 1) {
-                r("found one, returning");
-                return YRCSGuardians::whereLast($familyName)->first()->family_id;
-            }
-            if ($f > 1) {
-                r(["found more than one famname:", $f]);
-                $all = YRCSGuardians::whereLast($familyName)->get();
-                $found = [];
-                foreach ($all as $a) {
-                    $found[$a->family_id] = '';
-                }
-                if (count($found) > 1) {
-                    r(["found more than one again:", $found]);
-                    foreach ($fnames as $first) {
-                        r(["checking firsts ", $first]);
-                        $c = YRCSGuardians::whereFirst($first)->whereLast($familyName)->count();
-                        r([$first, $familyName, $c]);
-                        if ($c === 1) {
-                            $a = YRCSGuardians::whereFirst($first)->whereLast($familyName)->first();
-                            return $a->family_id;
-                        }
-                    }
+        if (count($fnames) === 1 && count($lnames) === 1) {
+            $this->dl("Looking for Guardian $first $last");
+            $guardiansWithThisName = YRCSGuardians::whereFirst($first)->whereLast($last)->count();
 
-                    foreach ($lnames as $last) {
-                        r(["checking lasts ", $last]);
-                        $c = YRCSGuardians::whereFirst($first)->whereLast($last)->count();
-                        r([$first, $last, $c]);
-                        if ($c === 1) {
-                            $a = YRCSGuardians::whereFirst($first)->whereLast($last)->first();
-                            return $a->family_id;
-                        }
-                    }
-                    r('more than one family matches ' . $familyName . ': ' . print_r($found, true));
-//                    return 'more than one family matches ' . $familyName . ': ' . print_r($found, true);
+            if ($guardiansWithThisName > 1) {
+                $this->dl("Impossible, $guardiansWithThisName guardians share the name $first $last");
+                trigger_error('Impossibru!', E_USER_NOTICE);
+            } elseif ($guardiansWithThisName === 1) {
+                return $this->returnGuardianWithExactMatchFirstAndLast($first, $last);
+            } elseif ($guardiansWithThisName < 1) {
+                $this->logEffectiveness('returnGuardianWithExactMatchFirstAndLast', -1);
+                $this->dl("No guardians found with the name $first $last. We must look deeper.");
+                $this->dl("Checking for guardian with last name $last and first name starting with $first");
+                $possiblyFoundID = $this->getGuardiansWithMatchingLastNameAndFirstNameStartingWith($first, $last);
+                if ($possiblyFoundID) {
+                    $this->dl("Found ID $possiblyFoundID");
+                    return $possiblyFoundID;
                 }
-                r(["found, returning:", $found]);
-                return $a->family_id;
+                $this->dl("Still haven't found $first $last.");
+                $this->dl("Checking for guardian with last name $last and first name containing $first");
+                $possiblyFoundID = $this->getGuardiansWithSameLastNameAndFirstNameContaining($first, $last);
+                if ($possiblyFoundID) {
+                    return $possiblyFoundID;
+                }
+                $this->dl("Still haven't found $first $last.");
+                $this->dl("Checking for other guardians with last name $last");
+                $possiblyFoundID = $this->getGuardiansWithSameLastName($last);
+                if ($possiblyFoundID) {
+                    return $possiblyFoundID;
+                }
+                $this->dl("Still haven't found $first $last.");
+                $this->dl("Checking for Guardians with last name $last and very similar first name to $first");
+                $possiblyFoundID = $this->getSimilarFirstNamesByLastName($first, $last);
+                if ($possiblyFoundID) {
+                    return $possiblyFoundID;
+                }
+                $this->dl("Still haven't found $first $last.");
+                $this->dl("Checking for Guardians with similar last name to $last");
+                $possiblyFoundID = $this->getSimilarFirstAndLastName($first, $last);
+                if ($possiblyFoundID) {
+                    return $possiblyFoundID;
+                }
+                $this->dl("Still haven't found $first $last.");
+                $this->dl("Checking if last name $last is unique to a family or individual in the school");
+                $possiblyFoundID = $this->checkIfLastNameIsUnique($first, $last);
+                if ($possiblyFoundID) {
+                    return $possiblyFoundID;
+                }
+                $this->dl("Still haven't found $first $last.");
+                $this->dl("Checking for Guardians with the first and last name swapped, $last $first");
+                $possiblyFoundID = $this->getGuardiansWithSwappedFirstAndLast($first, $last);
+                if ($possiblyFoundID) {
+                    return $possiblyFoundID;
+                }
+
+                $this->dl("Couldn't find $first $last at all, giving up");
+
             }
         }
-        r('not found');
-        return 'not found';
 
+
+//        return $this->detectionOriginalMethod($first, $last, $names, $fnames, $lnames);
+    }
+
+    private function getStudentsWithExactMatchName($childFirst, $childLast)
+    {
+        /** @var Collection $student */
+        $student = YRCSStudents::whereFirst($childFirst)->whereLast($childLast)->get();
+        if ($student->count() === 1) {
+            $this->dl("Found exact match for student {$childFirst} {$childLast}, returning {$student->first()->family_id}");
+            $this->logEffectiveness(__FUNCTION__, 1);
+            return $student->first()->family_id;
+        } elseif ($student->count() > 1) {
+            $this->dl("Found more than one match for student {$childFirst} {$childLast}, confusing....");
+            $this->logEffectiveness(__FUNCTION__, -1);
+            return false;
+        } else {
+            $this->logEffectiveness(__FUNCTION__, -1);
+            return false;
+        }
+    }
+
+    private function logEffectiveness($__FUNCTION__, $int)
+    {
+        if (!isset($this->stats[$__FUNCTION__]['success'])) {
+            $this->stats[$__FUNCTION__]['success'] = 0;
+        }
+        if (!isset($this->stats[$__FUNCTION__]['fail'])) {
+            $this->stats[$__FUNCTION__]['fail'] = 0;
+        }
+        if ($int === 1) {
+            $this->stats[$__FUNCTION__]['success']++;
+        }
+        if ($int === -1) {
+            $this->stats[$__FUNCTION__]['fail']++;
+        }
     }
 
     /**
@@ -746,6 +929,199 @@ class HomeController extends Controller
     }
 
     /**
+     * @param $first
+     * @param $last
+     * @return int
+     */
+    private function returnGuardianWithExactMatchFirstAndLast($first, $last)
+    {
+        $this->logEffectiveness(__FUNCTION__, 1);
+        $guardian = YRCSGuardians::whereFirst($first)->whereLast($last)->first();
+        $this->dl("Found one guardian named $first $last with family_id {$guardian->family_id}");
+        return $guardian->family_id;
+    }
+
+    private function getGuardiansWithMatchingLastNameAndFirstNameStartingWith($first, $last)
+    {
+        /** @var Collection $guardians_collection */
+        $guardians_collection = YRCSGuardians::whereLast($last)->where('first', 'like', "$first%")->get();
+        if ($guardians_collection->count() === 1) {
+            $g = $guardians_collection->first();
+            $this->dl("Found Guardian {$g->first} {$g->last}");
+            $this->logEffectiveness(__FUNCTION__, 1);
+            return (int)$g->family_id;
+        }
+        $this->logEffectiveness(__FUNCTION__, -1);
+        return false;
+    }
+
+    private function getGuardiansWithSameLastNameAndFirstNameContaining($first, $last)
+    {
+        $this->dl("Checking for other Guardians with last name $last and first name containing $first");
+        /** @var Collection $guardians_collection */
+        $guardians_collection = YRCSGuardians::whereLast($last)->where('first', 'like', "%$first%")->get();
+        $this->dl("Found {$guardians_collection->count()} Guardians with last name $last, containing $first in first");
+        if ($guardians_collection->count() === 1) {
+            $this->logEffectiveness(__FUNCTION__, 1);
+            return $guardians_collection->first()->family_id;
+        }
+        $this->logEffectiveness(__FUNCTION__, -1);
+        return false;
+    }
+
+    private function getGuardiansWithSameLastName($last)
+    {
+        /** @var Collection $guardians_collection */
+        $guardians_collection = YRCSGuardians::whereLast($last)->get();
+        $this->dl("Found {$guardians_collection->count()} Guardians with last name $last");
+        if ($guardians_collection->count() === 1) {
+            $guardian = $guardians_collection->first();
+            $family_id = $guardian->family_id;
+            $found_first = $guardian->first;
+            $this->dl("Found {$guardians_collection->count()} Guardian named $found_first $last, returning family_id $family_id");
+            $this->logEffectiveness(__FUNCTION__, 1);
+            return $family_id;
+        }
+        $this->logEffectiveness(__FUNCTION__, -1);
+        return false;
+    }
+
+    private function getSimilarFirstNamesByLastName($first, $last)
+    {
+        $guardians = YRCSGuardians::whereLast($last)->get();
+        foreach ($guardians as $guardian) {
+            $name = $first . ' ' . $last;
+            $check_name = $guardian->first . ' ' . $guardian->last;
+            $distance = levenshtein(strtolower($name), strtolower($check_name));
+            $this->dl("$check_name is $distance edits away from $name");
+            if ($distance <= 3) {
+                $this->dl("$check_name is close enough to $name");
+                $this->logEffectiveness(__FUNCTION__, 1);
+                return $guardian->family_id;
+            }
+        }
+        $this->logEffectiveness(__FUNCTION__, -1);
+        return false;
+    }
+
+    private function getSimilarFirstAndLastName($first, $last)
+    {
+        $guardians = YRCSGuardians::all();
+        $maybe = [];
+        foreach ($guardians as $guardian) {
+            $distance_last = levenshtein(strtolower($last), strtolower($guardian->last));
+            $this->dl("{$guardian->last} is $distance_last edits away from $last");
+            if ($distance_last <= 1) {
+                $maybe[] = $guardian;
+                $this->dl("{$guardian->last} is close at $distance_last edits, adding to maybe");
+            }
+        }
+
+        if (count($maybe) === 1) {
+            $this->dl("Only one very close match, returning {$maybe[0]->family_id} for {$maybe[0]->first} {$maybe[0]->last} as a close-ish match for $first $last");
+            $this->logEffectiveness(__FUNCTION__, 1);
+            return $maybe[0]->family_id;
+        }
+
+        foreach ($maybe as $guardian) {
+            $distance_first = levenshtein(strtolower($first), strtolower($guardian->first));
+            $this->dl("{$guardian->first} is $distance_first edits away from $first");
+            if ($distance_first <= 2) {
+                $this->dl("{$guardian->first} is close enough to $first, returning {$guardian->family_id}");
+                $this->logEffectiveness(__FUNCTION__, 1);
+                return $guardian->family_id;
+            }
+        }
+
+        $this->logEffectiveness(__FUNCTION__, -1);
+        return false;
+    }
+
+    private function checkIfLastNameIsUnique($first, $last)
+    {
+//        if ($last === 'Paige' || $last === 'Mark') return false;
+        $count = DB::select("select count(distinct family_id) as count from yrcs_guardians where last = '$last'");
+        $count = (int)$count[0]->count;
+        $this->dl("Found $count families with last name $last");
+        if ($count === 1) {
+            $family_id = YRCSGuardians::whereLast($last)->get(['family_id'])->first()->toArray();
+            $family_id = $family_id['family_id'];
+            $this->dl("Unique family name, returning family_id $family_id");
+            $this->logEffectiveness(__FUNCTION__, 1);
+            return $family_id;
+        }
+        $this->logEffectiveness(__FUNCTION__, -1);
+    }
+
+    private function getGuardiansWithSwappedFirstAndLast($first, $last)
+    {
+        /** @var Collection $guardians */
+        $guardians = YRCSGuardians::whereLast($first)->whereFirst($last)->get();;
+        if ($guardians->count() === 1) {
+            $this->logEffectiveness(__FUNCTION__, 1);
+            return $guardians->first()->family_id;
+        }
+        foreach ($guardians as $guardian) {
+            $name = $first . ' ' . $last;
+            $check_name = $guardian->first . ' ' . $guardian->last;
+            $distance = levenshtein(strtolower($name), strtolower($check_name));
+            $this->dl("$check_name is $distance edits away from $name");
+            if ($distance <= 3) {
+                $this->dl("$check_name is close enough to $name");
+                $this->logEffectiveness(__FUNCTION__, 1);
+                return $guardian->family_id;
+            }
+        }
+        $this->logEffectiveness(__FUNCTION__, -1);
+        return false;
+    }
+
+    /**
+     * @return string
+     */
+    private function getClassGradeField()
+    {
+        return 'What class/program is one of your children in?';
+    }
+
+    /**
+     * @param $log
+     */
+    private function processLog($log)
+    {
+        foreach ($log as $item) {
+            try {
+                $fam = Family::firstOrCreate(['id' => $item['family_id']]);
+                if (isset($fam->id)) {
+                    $attributes = [
+                        'hours' => $item['hours'],
+                        'date' => $item['date'],
+                        'family_id' => $item['family_id'],
+                    ];
+                    $log = TimeLog::create($attributes);
+                    $log->save();
+
+                }
+            } catch (Exception $e) {
+
+            }
+
+        }
+    }
+
+    private function surveyMonkeyRequester()
+    {
+
+    }
+
+    private function sortByDistance($a, $b)
+    {
+        if ($a['distance'] > $b['distance']) return 1;
+        if ($a['distance'] < $b['distance']) return -1;
+        if ($a['distance'] === $b['distance']) return 0;
+    }
+
+    /**
      * @param $SM
      * @param $ids
      */
@@ -762,5 +1138,94 @@ class HomeController extends Controller
 //            ~r($title, $id, $surveyDetails);
             sleep(1);
         }
+    }
+
+    /**
+     * @param $first
+     * @param $last
+     * @param $names
+     * @param $fnames
+     * @param $lnames
+     * @return int|string
+     */
+    private function detectionOriginalMethod($first, $last, $names, $fnames, $lnames)
+    {
+        foreach ($names as $familyName) {
+            r(["Looking for $familyName"]);
+            $guardian = YRCSGuardians::whereLast($familyName)->count();
+            if ($guardian === 0) {
+                r("continuing, no guardians with last name " . $familyName, $first, $last);
+                continue;
+            }
+            if ($guardian === 1) {
+                r("found one, returning");
+                return YRCSGuardians::whereLast($familyName)->first()->family_id;
+            }
+            if ($guardian > 1) {
+                r(["found $guardian matching guardians"]);
+                $all = YRCSGuardians::whereLast($familyName)->get();
+                $found = [];
+                foreach ($all as $a) {
+                    $found[$a->family_id] = '';
+                }
+                $count = count($found);
+                if (count($found) > 1) {
+                    r("found $count matching last names, checking against first names");
+                    foreach ($fnames as $first) {
+                        r("Guardians with first name $first and family name $familyName");
+                        $c = YRCSGuardians::whereFirst($first)->whereLast($familyName)->count();
+                        r([$first, $familyName, $c]);
+                        if ($c === 1) {
+                            $a = YRCSGuardians::whereFirst($first)->whereLast($familyName)->first();
+                            r("found id {$a->family_id} via first last");
+                            return $a->family_id;
+                        } else {
+                            r('nothing found');
+                        }
+                    }
+
+                    foreach ($lnames as $last) {
+                        r("checking $last");
+                        $c = YRCSGuardians::whereFirst($first)->whereLast($last)->count();
+                        r([$first, $last, $c]);
+                        if ($c === 1) {
+                            $a = YRCSGuardians::whereFirst($first)->whereLast($last)->first();
+                            r("found id {$a->family_id} via last");
+                            return $a->family_id;
+                        } else {
+                            r('nothing found');
+                        }
+                    }
+                    r('more than one guardian matches ' . $familyName . ': ' . print_r($found, true));
+//                    return 'more than one family matches ' . $familyName . ': ' . print_r($found, true);
+                } else {
+                    r(['found only one guardian, returning:', $found]);
+                }
+
+                return $a->family_id;
+            }
+        }
+
+        $this->getSimilarNames($first, $last);
+
+        return 'not found';
+    }
+
+    private function getSimilarNames($first, $last)
+    {
+        $guardians = YRCSGuardians::all(['first', 'last']);
+        foreach ($guardians as $guardian) {
+            $name = $first . ' ' . $last;
+            $check_name = $guardian->first . ' ' . $guardian->last;
+            $missing[] = [
+                'name' => $name,
+                'vs' => $check_name,
+                'distance' => levenshtein($name, $check_name)
+            ];
+        }
+
+//        r($missing);
+        usort($missing, [$this, 'sortByDistance']);
+        ~r($missing);
     }
 }
