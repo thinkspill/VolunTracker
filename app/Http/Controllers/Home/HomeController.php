@@ -491,19 +491,18 @@ class HomeController extends Controller
     {
         foreach ($this->allSurveyIDs as $surveyID) {
             $this->currentSurveyId = $surveyID;
-            $questions = $this->getQuestions($surveyID);
-            $responses = $this->getResponses($surveyID);
-            $log = $this->getLog($responses);
-            $this->processLog($log);
+            $this->generateQuestionsLookupTable($surveyID);
+            $responses = $this->generateResponsesLookupTable($surveyID);
+            $log = $this->parseHoursToFamilyId($responses);
+            $this->saveHoursToFamilyId($log);
         }
         dd($this->stats);
-
     }
 
     /**
      * @return array|mixed|null
      */
-    private function getQuestions($surveyID)
+    private function generateQuestionsLookupTable($surveyID)
     {
         $item = $this->pool->getItem('/surveyDetails/' . $surveyID);
         $surveyDetails = $item->get();
@@ -566,7 +565,7 @@ class HomeController extends Controller
     /**
      * @return array
      */
-    private function getResponses($surveyID)
+    private function generateResponsesLookupTable($surveyID)
     {
         $item = $this->pool->getItem('/reslist/' . $surveyID);
         $respondentsToRequest = [];
@@ -655,7 +654,7 @@ class HomeController extends Controller
      * @param $responses
      * @return array
      */
-    private function getLog($responses)
+    private function parseHoursToFamilyId($responses)
     {
         $log = [];
         $hours = 0;
@@ -1087,7 +1086,7 @@ class HomeController extends Controller
     /**
      * @param $log
      */
-    private function processLog($log)
+    private function saveHoursToFamilyId($log)
     {
         foreach ($log as $item) {
             try {
