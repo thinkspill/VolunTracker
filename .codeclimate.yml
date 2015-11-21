@@ -25,3 +25,5 @@ exclude_paths:
 - database/**/*
 - storage/**/*
 - vendor/**/*
+- public/**/*
+- _ide_helper.php
