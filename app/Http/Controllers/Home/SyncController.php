@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Home;
 
+use App\DebugDumper;
 use App\Family;
 use App\Http\Controllers\Controller;
 use App\ThrottledSurveyMonkey;
@@ -16,32 +17,116 @@ use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
 use Monolog\Logger;
 use ref;
-use Stash\Driver\FileSystem;
-use Stash\Pool;
 
+/**
+ * Class SyncController
+ * @package App\Http\Controllers\Home
+ */
 class SyncController extends Controller
 {
+    use DebugDumper;
+    /**
+     * @var string First survey to process
+     */
     private $volunteerHourSurveyId = '';
+    /**
+     * @var string Second survey to process
+     */
     private $volunteerHourSurveyId2 = '';
+    /**
+     * @var array Container to hold all survey IDs
+     */
     private $allSurveyIDs = [];
+    /**
+     * @var string The currently-processed survey ID
+     */
     private $currentSurveyId = '';
+    /**
+     * @var array Lookup tables
+     */
     private $qLookup, $aLookup, $rLookup = [];
-    private $SM, $pool;
+    /**
+     * @var ThrottledSurveyMonkey
+     */
+    private $SM;
+    /**
+     * @var array Storage for sync statistics
+     */
     private $stats;
-    private $total_hours = 0;
-    private $total_logs_done = 0;
-    private $total_logs_missed = 0;
-    private $total_respondents = 0;
+    /**
+     * @var int Total hours seen
+     */
+    private $totalHours = 0;
+    /**
+     * @var int Total hours logged
+     */
+    private $totalLogsDone = 0;
+    /**
+     * @var int Total hours not logged
+     */
+    private $totalLogsMissed = 0;
+    /**
+     * @var int Total count of respondents
+     */
+    private $totalRespondents = 0;
 
+    /**
+     * SyncController constructor.
+     */
     public function __construct()
     {
         $this->initConfig();
-        $this->initCache();
         $this->initErrorHandler();
         $this->configSurveyIDs();
         $this->SM = new ThrottledSurveyMonkey();
     }
 
+    /**
+     * Sets up some output configs
+     * @throws \Exception
+     */
+    private function initConfig()
+    {
+        try {
+            ref::config('expLvl', -1);
+            ref::config('maxDepth', 0);
+            if (!ini_get('auto_detect_line_endings')) {
+                ini_set('auto_detect_line_endings', '1');
+            }
+        } catch (\Exception $e) {
+
+        }
+    }
+
+    /**
+     * Sets up error handler
+     */
+    private function initErrorHandler()
+    {
+        $logger = new Logger('log');
+        $logger->pushHandler((new ErrorLogHandler())->setFormatter(new LineFormatter()));
+        ErrorHandler::register($logger);
+    }
+
+    /**
+     * Sets up the survey IDs
+     */
+    private function configSurveyIDs()
+    {
+        $this->volunteerHourSurveyId = env('SURVEY_MONKEY_SURVEY_ID_1');
+        $this->volunteerHourSurveyId2 = env('SURVEY_MONKEY_SURVEY_ID_2');
+
+        $this->allSurveyIDs = [
+            $this->volunteerHourSurveyId,
+            $this->volunteerHourSurveyId2
+        ];
+    }
+
+    /**
+     * Loop through each Survey ID,
+     * generating questions, answers, and respondents lookup tables,
+     * match that to existing families, and log matches to database.
+     */
     public function syncSurveyMonkey()
     {
         foreach ($this->allSurveyIDs as $surveyID) {
@@ -51,40 +136,19 @@ class SyncController extends Controller
             $log = $this->parseHoursToFamilyId($responses);
             $this->saveHoursToFamilyId($log);
         }
-        dd($this->total_hours, $this->total_logs_done, $this->total_logs_missed, $this->total_respondents, $this->stats);
+        dd($this->totalHours, $this->totalLogsDone, $this->totalLogsMissed, $this->totalRespondents, $this->stats);
     }
 
     /**
-     * @return array|mixed|null
+     * @param $surveyID
+     * @return array
      */
     private function generateQuestionsLookupTable($surveyID)
     {
-        $item = $this->pool->getItem('/surveyDetails/' . $surveyID);
-        $surveyDetails = $item->get();
-        if ($item->isMiss()) {
-            $this->dl('Requesting survey details from Survey Monkey and saving to cache');
-            $item->lock();
-
-            $surveyDetails = $this->SM->surveyMonkeyGetSurveyDetails($surveyID);
-            $item->set($surveyDetails);
-        } else {
-            $this->dl('Reusing cached survey details');
-        }
+        $surveyDetails = $this->SM->surveyMonkeyGetSurveyDetails($surveyID);
         $questions = $this->extractQuestions($surveyDetails);
         $questions = $this->processQuestions($questions);
         return $questions;
-    }
-
-    private function dl($debugdata, $file = __FILE__, $line = __LINE__)
-    {
-//        r(['DebugLog: ' . basename($file) . ':' . $line => $debugdata]);
-        if (is_string($debugdata)) {
-            r(['DebugLog' => $debugdata]);
-        } else {
-            r(['DebugLog' => '']);
-            r($debugdata);
-        }
-
     }
 
     /**
@@ -100,6 +164,10 @@ class SyncController extends Controller
         return $questions;
     }
 
+    /**
+     * @param $v
+     * @return array
+     */
     private function processQuestions($v)
     {
         $questions = [];
@@ -114,6 +182,10 @@ class SyncController extends Controller
         return $questions;
     }
 
+    /**
+     * @param $answers
+     * @return array
+     */
     private function extractAnswers($answers)
     {
         $r = [];
@@ -131,25 +203,16 @@ class SyncController extends Controller
     }
 
     /**
+     * @param $surveyID
      * @return array
      */
     private function generateResponsesLookupTable($surveyID)
     {
-        $item = $this->pool->getItem('/reslist/' . $surveyID);
+        $respondentList = $this->SM->surveyMonkeyGetRespondentList($surveyID, ['fields' => ['date_modified']]);
+
+        $this->totalRespondents += count($respondentList['data']['respondents']);
+
         $respondentsToRequest = [];
-        $respondentList = $item->get();
-        $this->dl($item->isMiss());
-        if ($item->isMiss()) {
-            $this->dl('Requesting respondent list from Survey Monkey and saving to cache');
-            $item->lock();
-            $respondentList = $this->SM->surveyMonkeyGetRespondentList($surveyID, ['fields' => ['date_modified']]);
-            $item->set($respondentList);
-        } else {
-            $this->dl('Reusing cached respondent list');
-        }
-
-        $this->total_respondents += count($respondentList['data']['respondents']);
-
         foreach ($respondentList['data']['respondents'] as $r) {
             $this->rLookup[$r['respondent_id']] = $r['date_modified'];
             $respondentsToRequest[] = $r['respondent_id'];
@@ -160,6 +223,10 @@ class SyncController extends Controller
         return $responses;
     }
 
+    /**
+     * @param $responses
+     * @return array
+     */
     private function processResponses($responses)
     {
         $resp = [];
@@ -186,11 +253,21 @@ class SyncController extends Controller
         return $resp;
     }
 
+    /**
+     * @param $id
+     * @param $type
+     * @return mixed|string
+     */
     private function t($id, $type)
     {
         return $this->translate($id, $type);
     }
 
+    /**
+     * @param $id
+     * @param $type
+     * @return mixed|string
+     */
     private function translate($id, $type)
     {
         if ($type === 'a') {
@@ -198,8 +275,6 @@ class SyncController extends Controller
                 $return = $this->aLookup[$id];
                 $return = preg_replace('/[()]/', '', $return);
                 return $return;
-            } else {
-//                r($id, $type);
             }
         }
         if ($type === 'q') {
@@ -218,8 +293,7 @@ class SyncController extends Controller
     private function parseHoursToFamilyId($responses)
     {
         $log = [];
-        $hours = 0;
-        $this->dl("Found " . count($responses) . " raw responses");
+        $this->dl('Found ' . count($responses) . ' raw responses');
         foreach ($responses as $date => $r) {
 
             $childFirst = $childLast = '';
@@ -245,18 +319,18 @@ class SyncController extends Controller
             } elseif (isset($r[$howManyHoursField]['Other please specify'])) {
                 $hours = $r[$howManyHoursField]['Other please specify'];
             } else {
-                $this->dl("No hours field found !!!!!!!!!!!!!!!!!!!!");
+                $this->dl('No hours field found !!!!!!!!!!!!!!!!!!!!');
                 $this->dl([$r[$howManyHoursField]]);
                 if (isset($r[$howManyHoursField][0])) {
-                    $this->dl("Dumping blah blah");
+                    $this->dl('Dumping blah blah');
                     $this->dl([$r[$howManyHoursField][0]]);
                 }
-                $this->total_logs_missed += 1;
+                $this->totalLogsMissed += 1;
                 continue;
             }
 
-            $this->total_hours += $hours;
-            $this->total_logs_done += 1;
+            $this->totalHours += $hours;
+            $this->totalLogsDone += 1;
 
 
             $familyLastName = '';
@@ -299,6 +373,8 @@ class SyncController extends Controller
             case $this->volunteerHourSurveyId2:
                 return 'How many hours did you volunteer? Please only use numerical values and round your total up or down to enter a whole number.';
         }
+
+        return false;
     }
 
     /**
@@ -341,6 +417,14 @@ class SyncController extends Controller
         return $r['Tell us about yourself']['Your First Name'];
     }
 
+    /**
+     * @param $familyName
+     * @param $first
+     * @param $last
+     * @param $childFirst
+     * @param $childLast
+     * @return bool|int
+     */
     private function detectFamily($familyName, $first, $last, $childFirst, $childLast)
     {
         $possiblyFoundID = $this->getStudentsWithExactMatchName($childFirst, $childLast);
@@ -438,6 +522,11 @@ class SyncController extends Controller
 //        return $this->detectionOriginalMethod($first, $last, $names, $fnames, $lnames);
     }
 
+    /**
+     * @param $childFirst
+     * @param $childLast
+     * @return bool
+     */
     private function getStudentsWithExactMatchName($childFirst, $childLast)
     {
         /** @var Collection $student */
@@ -456,6 +545,10 @@ class SyncController extends Controller
         }
     }
 
+    /**
+     * @param $__FUNCTION__
+     * @param $int
+     */
     private function logEffectiveness($__FUNCTION__, $int)
     {
         if (!isset($this->stats[$__FUNCTION__]['success'])) {
@@ -521,6 +614,11 @@ class SyncController extends Controller
         return $guardian->family_id;
     }
 
+    /**
+     * @param $first
+     * @param $last
+     * @return bool|int
+     */
     private function getGuardiansWithMatchingLastNameAndFirstNameStartingWith($first, $last)
     {
         /** @var Collection $guardians_collection */
@@ -535,6 +633,11 @@ class SyncController extends Controller
         return false;
     }
 
+    /**
+     * @param $first
+     * @param $last
+     * @return bool
+     */
     private function getGuardianWithVeryCloseEditDistance($first, $last)
     {
         $guardians = YRCSGuardians::all(['first', 'last', 'family_id']);
@@ -551,6 +654,11 @@ class SyncController extends Controller
         return false;
     }
 
+    /**
+     * @param $first
+     * @param $last
+     * @return bool
+     */
     private function getGuardiansWithSameLastNameAndFirstNameContaining($first, $last)
     {
         $this->dl("Checking for other Guardians with last name $last and first name containing $first");
@@ -565,6 +673,11 @@ class SyncController extends Controller
         return false;
     }
 
+    /**
+     * @param $first
+     * @param $last
+     * @return bool
+     */
     private function getGuardiansWithMatchingFirstNameButDifferentLastNameAsOtherFamily($first, $last)
     {
         $this->dl("Searching for families with last name $last");
@@ -593,6 +706,11 @@ class SyncController extends Controller
         return false;
     }
 
+    /**
+     * @param $first
+     * @param $last
+     * @return bool
+     */
     private function getGuardiansWithExactFirstNameAndLastNameContainingLast($first, $last)
     {
         $this->dl("Searching for Guardians with first name $first");
@@ -603,12 +721,16 @@ class SyncController extends Controller
             $this->dl("Found match for {$guardians_collection->first()->first} {$guardians_collection->first()->last}, returning {$guardians_collection->first()->family_id}");
             return $guardians_collection->first()->family_id;
         } else {
-            $this->dl("Found " . $guardians_collection->count() . "matches");
+            $this->dl("Found " . $guardians_collection->count() . " matches");
         }
         $this->logEffectiveness(__FUNCTION__, -1);
         return false;
     }
 
+    /**
+     * @param $last
+     * @return bool
+     */
     private function getGuardiansWithSameLastName($last)
     {
         /** @var Collection $guardians_collection */
@@ -626,6 +748,11 @@ class SyncController extends Controller
         return false;
     }
 
+    /**
+     * @param $first
+     * @param $last
+     * @return bool
+     */
     private function getSimilarFirstNamesByLastName($first, $last)
     {
         $guardians = YRCSGuardians::whereLast($last)->get();
@@ -644,6 +771,11 @@ class SyncController extends Controller
         return false;
     }
 
+    /**
+     * @param $first
+     * @param $last
+     * @return bool
+     */
     private function getSimilarFirstAndLastName($first, $last)
     {
         $guardians = YRCSGuardians::all();
@@ -677,6 +809,11 @@ class SyncController extends Controller
         return false;
     }
 
+    /**
+     * @param $first
+     * @param $last
+     * @return mixed
+     */
     private function checkIfLastNameIsUnique($first, $last)
     {
 //        if ($last === 'Paige' || $last === 'Mark') return false;
@@ -693,6 +830,11 @@ class SyncController extends Controller
         $this->logEffectiveness(__FUNCTION__, -1);
     }
 
+    /**
+     * @param $first
+     * @param $last
+     * @return bool
+     */
     private function getGuardiansWithSwappedFirstAndLast($first, $last)
     {
         /** @var Collection $guardians */
@@ -747,6 +889,9 @@ class SyncController extends Controller
         }
     }
 
+    /**
+     *
+     */
     private function fakeRespondentList()
     {
         $r = [
@@ -761,6 +906,9 @@ class SyncController extends Controller
         ];
     }
 
+    /**
+     *
+     */
     private function getFakeResponses()
     {
         $r = ['success' => true,
@@ -799,41 +947,5 @@ class SyncController extends Controller
                 ],
             ],
         ];
-    }
-
-    private function configSurveyIDs()
-    {
-        $this->volunteerHourSurveyId = env('SURVEY_MONKEY_SURVEY_ID_1');
-        $this->volunteerHourSurveyId2 = env('SURVEY_MONKEY_SURVEY_ID_2');
-
-        $this->allSurveyIDs = [
-            $this->volunteerHourSurveyId,
-            $this->volunteerHourSurveyId2
-        ];
-    }
-
-    private function initConfig()
-    {
-        ref::config('expLvl', -1);
-        ref::config('maxDepth', 0);
-
-        if (!ini_get('auto_detect_line_endings')) {
-            ini_set('auto_detect_line_endings', '1');
-        }
-    }
-
-    private function initCache()
-    {
-        $driver = new FileSystem();
-        $this->pool = new Pool($driver);
-//        $this->pool->flush();
-    }
-
-    private function initErrorHandler()
-    {
-        $logger = new Logger('log');
-        $logger->pushHandler((new ErrorLogHandler())->setFormatter(new LineFormatter()));
-        $this->pool->setLogger($logger);
-        ErrorHandler::register($logger);
     }
 }
