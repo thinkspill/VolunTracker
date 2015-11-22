@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Home;
 
 use App\Family;
 use App\Http\Controllers\Controller;
+use App\ThrottledSurveyMonkey;
 use App\TimeLog;
 use App\YRCSGuardians;
 use App\YRCSStudents;
-use Ascension\SurveyMonkey;
 use DB;
 use Exception;
 use Illuminate\Database\Eloquent\Collection;
@@ -18,7 +18,6 @@ use Monolog\Logger;
 use ref;
 use Stash\Driver\FileSystem;
 use Stash\Pool;
-use Stiphle\Throttle\LeakyBucket;
 
 class SyncController extends Controller
 {
@@ -29,7 +28,6 @@ class SyncController extends Controller
     private $qLookup, $aLookup, $rLookup = [];
     private $SM, $pool;
     private $stats;
-    private $throttle, $throttle_id;
     private $total_hours = 0;
     private $total_logs_done = 0;
     private $total_logs_missed = 0;
@@ -37,34 +35,11 @@ class SyncController extends Controller
 
     public function __construct()
     {
-        ref::config('expLvl', -1);
-        ref::config('maxDepth', 0);
-
-        $this->volunteerHourSurveyId = env('SURVEY_MONKEY_SURVEY_ID_1');
-        $this->volunteerHourSurveyId2 = env('SURVEY_MONKEY_SURVEY_ID_2');
-
-        $this->allSurveyIDs = [
-            $this->volunteerHourSurveyId,
-            $this->volunteerHourSurveyId2
-        ];
-
-        $this->throttle = new LeakyBucket;
-        $this->throttle_id = 'sm';
-
-
-        if (!ini_get('auto_detect_line_endings')) {
-            ini_set('auto_detect_line_endings', '1');
-        }
-
-        $this->SM = new SurveyMonkey(env('SURVEY_MONKEY_API_KEY'), env('SURVEY_MONKEY_ACCESS_TOKEN'));
-        $driver = new FileSystem();
-        $this->pool = new Pool($driver);
-        $logger = new Logger('log');
-        $logger->pushHandler((new ErrorLogHandler())->setFormatter(new LineFormatter()));
-        $this->pool->setLogger($logger);
-        ErrorHandler::register($logger);
-//        $logger->log('info', 'test');
-//        $this->pool->flush();
+        $this->initConfig();
+        $this->initCache();
+        $this->initErrorHandler();
+        $this->configSurveyIDs();
+        $this->SM = new ThrottledSurveyMonkey();
     }
 
     public function syncSurveyMonkey()
@@ -90,7 +65,7 @@ class SyncController extends Controller
             $this->dl('Requesting survey details from Survey Monkey and saving to cache');
             $item->lock();
 
-            $surveyDetails = $this->surveyMonkeyGetSurveyDetails($surveyID);
+            $surveyDetails = $this->SM->surveyMonkeyGetSurveyDetails($surveyID);
             $item->set($surveyDetails);
         } else {
             $this->dl('Reusing cached survey details');
@@ -99,18 +74,6 @@ class SyncController extends Controller
         $questions = $this->processQuestions($questions);
         return $questions;
     }
-
-    private function throttleSM()
-    {
-        $this->throttle->throttle($this->throttle_id, 2, 2000);;
-    }
-
-    private function surveyMonkeyGetSurveyDetails($surveyID)
-    {
-        $this->throttleSM();
-        return $this->SM->getSurveyDetails($surveyID)['data'];
-    }
-
 
     private function dl($debugdata, $file = __FILE__, $line = __LINE__)
     {
@@ -179,7 +142,7 @@ class SyncController extends Controller
         if ($item->isMiss()) {
             $this->dl('Requesting respondent list from Survey Monkey and saving to cache');
             $item->lock();
-            $respondentList = $this->surveyMonkeyGetRespondentList($surveyID, ['fields' => ['date_modified']]);
+            $respondentList = $this->SM->surveyMonkeyGetRespondentList($surveyID, ['fields' => ['date_modified']]);
             $item->set($respondentList);
         } else {
             $this->dl('Reusing cached respondent list');
@@ -191,22 +154,10 @@ class SyncController extends Controller
             $this->rLookup[$r['respondent_id']] = $r['date_modified'];
             $respondentsToRequest[] = $r['respondent_id'];
         }
-        $responses = $this->surveyMonkeyGetResponses($surveyID, $respondentsToRequest);
+        $responses = $this->SM->surveyMonkeyGetResponses($surveyID, $respondentsToRequest);
 //        $responses = $this->getFakeResponses();
         $responses = $this->processResponses($responses['data']);
         return $responses;
-    }
-
-    private function surveyMonkeyGetRespondentList($surveyID, $array)
-    {
-        $this->throttleSM();
-        return $this->SM->getRespondentList($surveyID, $array);
-    }
-
-    private function surveyMonkeyGetResponses($surveyID, $respondentsToRequest)
-    {
-        $this->throttleSM();
-        return $this->SM->getResponses($surveyID, $respondentsToRequest);
     }
 
     private function processResponses($responses)
@@ -848,5 +799,41 @@ class SyncController extends Controller
                 ],
             ],
         ];
+    }
+
+    private function configSurveyIDs()
+    {
+        $this->volunteerHourSurveyId = env('SURVEY_MONKEY_SURVEY_ID_1');
+        $this->volunteerHourSurveyId2 = env('SURVEY_MONKEY_SURVEY_ID_2');
+
+        $this->allSurveyIDs = [
+            $this->volunteerHourSurveyId,
+            $this->volunteerHourSurveyId2
+        ];
+    }
+
+    private function initConfig()
+    {
+        ref::config('expLvl', -1);
+        ref::config('maxDepth', 0);
+
+        if (!ini_get('auto_detect_line_endings')) {
+            ini_set('auto_detect_line_endings', '1');
+        }
+    }
+
+    private function initCache()
+    {
+        $driver = new FileSystem();
+        $this->pool = new Pool($driver);
+//        $this->pool->flush();
+    }
+
+    private function initErrorHandler()
+    {
+        $logger = new Logger('log');
+        $logger->pushHandler((new ErrorLogHandler())->setFormatter(new LineFormatter()));
+        $this->pool->setLogger($logger);
+        ErrorHandler::register($logger);
     }
 }
