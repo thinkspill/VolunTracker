@@ -34,7 +34,7 @@ class ReportController extends Controller
     }
 
 
-    public function pdf()
+    public function pdf(PDF $p)
     {
         list($none, $under, $meets, $exceeds) = $this->generateReports();
 
@@ -43,7 +43,7 @@ class ReportController extends Controller
 //        ~r(count($none), count($under), count($meets), count($exceeds));
 
         /** @var \DOMPDF $pdf */
-        $pdf = PDF::loadView('printable', [
+        $pdf = $p->loadView('printable', [
             'exceeds' => $exceeds,
             'meets' => $meets,
             'under' => $under,
@@ -51,7 +51,8 @@ class ReportController extends Controller
         ]);
 
         ini_set('max_execution_time', 0);
-        return $pdf->stream('test.pdf');
+        $pdf->stream('test.pdf');
+        exit;
     }
 
     /**

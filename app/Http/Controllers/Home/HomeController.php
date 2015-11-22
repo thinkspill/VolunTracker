@@ -34,60 +34,28 @@ class HomeController extends Controller
 
     public function index()
     {
-        $students = YRCSStudents::sorted()->paginate(10, ['*'], 'students');
+        $students = YRCSStudents::sorted()->orderBy('family_id')->get();
+        $families = YRCSFamilies::sorted()->orderBy('id')->get();
+        $guardians = YRCSGuardians::get();
+        $studentCount = YRCSStudents::all()->count();
+        $guardianCount = YRCSGuardians::all()->count();
+        $familyCount = YRCSFamilies::all()->count();
 
-        $stu_table = (new Table)->create($students, ['first']);
-        $stu_table->setView('tablecondensed');
-        $stu_table->addColumn('last', 'Last', function ($model) {
-            return "<a href='/family/{$model->family_id}'>{$model->last}</a>";
-        });
+        $totalHours = TimeLog::all()->sum('hours');
+        $expectedMonthlyHours = 5 * $familyCount;
+        $totalExpectedHours = $this->calcExpectedHours($expectedMonthlyHours);
 
-        $guardians = YRCSGuardians::sorted()->paginate(10, ['*'], 'guardians');
-        $guardian_table = (new Table)->create($guardians, ['relationship', 'first']);
-        $guardian_table->setView('tablecondensed');
-        $guardian_table->addColumn('last', 'Last', function ($model) {
-            return "<a href='/family/{$model->family_id}'>{$model->last}</a>";
-        });
-
-        $families = YRCSFamilies::sorted()->paginate(10, ['*'], 'families');
-        $fam_table = (new Table)->create($families, ['id']);
-        $fam_table->setView('tablecondensed');
-        $fam_table->addColumn('family_id', 'Family ID', function ($model) {
-            return "<a href='/family/{$model->family_id}'>{$model->family_id}</a>";
-        });
-        $fam_table->addColumn('hours', 'Hours', function ($model) {
-            $s = TimeLog::whereFamilyId($model->family_id)->get();
-            return $s->sum('hours');
-        });
-
-        $hours = TimeLog::sorted()->paginate(10, ['*'], 'hours');
-        $hours_table = (new Table)->create($hours, ['date', 'hours']);
-        $hours_table->setView('tablecondensed');
-        $hours_table->addColumn('family_id', 'Family ID', function ($model) {
-            return "<a href='/family/{$model->family_id}'>{$model->family_id}</a>";
-        });
-
-        $s_count = YRCSStudents::all()->count();
-        $g_count = YRCSGuardians::all()->count();
-        $f_count = YRCSFamilies::all()->count();
-
-        $total_hours = TimeLog::all()->sum('hours');
-
-        $expected_monthly_hours = 5 * $f_count;
-
-        $total_expected_hours = $this->calc_expected_hours($expected_monthly_hours);
-
-        return view('index', [
-            'fam_table' => $fam_table,
-            'guardians_table' => $guardian_table,
-            'students_table' => $stu_table,
-            'hours_table' => $hours_table,
-            'student_count' => $s_count,
-            'guardian_count' => $g_count,
-            'family_count' => $f_count,
-            'total_hours' => $total_hours,
-            'total_expected_hours' => $total_expected_hours,
-            'ratio' => round($total_hours / $total_expected_hours, 4) * 100,
+        return view('tables', [
+            'families' => $families,
+            'guardians' => $guardians,
+            'students' => $students,
+//            'hours_table' => $hours_table,
+            'student_count' => $studentCount,
+            'guardian_count' => $guardianCount,
+            'family_count' => $familyCount,
+            'total_hours' => $totalHours,
+            'total_expected_hours' => $totalExpectedHours,
+            'ratio' => round($totalHours / $totalExpectedHours, 4) * 100,
             'mom_count' => YRCSGuardians::whereRelationship('mother')->count(),
             'dad_count' => YRCSGuardians::whereRelationship('father')->count(),
             'stepdad_count' => YRCSGuardians::whereRelationship('stepfather')->count(),
@@ -99,32 +67,24 @@ class HomeController extends Controller
         ]);
     }
 
-    /**
-     * @param $expected_monthly_hours
-     * @return mixed
-     */
-    private function calc_expected_hours($expected_monthly_hours)
+    private function calcExpectedHours($expectedMonthlyHours)
     {
-        $months_elapsed = $this->months_elapsed();
-
-        $total_expected_hours = $expected_monthly_hours * $months_elapsed;
-        return $total_expected_hours;
+        $monthsElapsed = $this->monthsElapsed();
+        $totalExpectedHours = $expectedMonthlyHours * $monthsElapsed;
+        return $totalExpectedHours;
     }
 
-    /**
-     * @return int
-     */
-    private function months_elapsed()
+    private function monthsElapsed()
     {
         $period = new Period('2015-08-19', '2016-06-03');
         $now = date('F, Y');
-        $months_elapsed = 0;
+        $monthsElapsed = 0;
         foreach ($period->getDatePeriod('1 MONTH') as $datetime) {
-            $months_elapsed++;
+            $monthsElapsed++;
             if ($now === $datetime->format('F, Y')) {
                 break;
             }
         }
-        return $months_elapsed;
+        return $monthsElapsed;
     }
 }

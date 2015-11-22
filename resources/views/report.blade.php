@@ -3,7 +3,7 @@
     <div class="row">
         <div class="col-sm-4">
             <h3>Meets/exceeds</h3>
-            <table class="table table-condensed">
+            <table class="table table-condensed" id="meets">
                 @foreach ($exceeds + $meets as $f)
                     <tr>
                         <td>
@@ -31,7 +31,7 @@
         </div>
         <div class="col-sm-4">
             <h3>Under</h3>
-            <table class="table table-condensed">
+            <table class="table table-condensed" id="under">
                 @foreach ($under as $f)
                     <tr>
                         <td>
@@ -62,7 +62,7 @@
         <div class="col-sm-4">
             <h3>None</h3>
 
-            <table class="table table-condensed">
+            <table class="table table-condensed" id="none">
                 @foreach ($none as $f)
                     <tr>
                         <td>
@@ -91,4 +91,10 @@
         </div>
     </div>
 
+@endsection
+
+@section('footer_scripts')
+    <script>
+        $('#meets').DataTable();
+    </script>
 @endsection

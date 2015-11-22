@@ -8,6 +8,7 @@
 
   <!-- Bootstrap CSS -->
   <link href="/bootstrap.min.css" rel="stylesheet" type="text/css">
+  <link href="/vendor/dataTables/datatables.css" rel="stylesheet" type="text/css">
 
 </head>
 <body>
@@ -17,5 +18,7 @@
 <!-- jQuery first, then Bootstrap JS. -->
 <script src="/jquery.min.js"></script>
 <script src="/bootstrap.js"></script>
+<script src="/vendor/dataTables/datatables.js"></script>
+@yield('footer_scripts')
 </body>
 </html>
