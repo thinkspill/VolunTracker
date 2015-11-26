@@ -158,7 +158,7 @@ class SyncController extends Controller
     private function extractQuestions($surveyDetails)
     {
         $questions = [];
-        foreach ($surveyDetails['pages'][0]['questions'] as $question) {
+        foreach ($surveyDetails['data']['pages'][0]['questions'] as $question) {
             $questions[] = $question;
         }
         return $questions;
@@ -349,6 +349,11 @@ class SyncController extends Controller
                 $lastName = $this->getYourLastNameField($r);
             }
             $f = $this->detectFamily($familyLastName, $firstName, $lastName, $childFirst, $childLast);
+            if ($f) {
+                $this->dl("<== Found ID $f");
+            } else {
+                $this->dl("Family ID not found");
+            }
             $classGradeField = $this->getClassGradeField();
             $class = $r[$classGradeField]['0'];
             $log[] = [
@@ -427,14 +432,20 @@ class SyncController extends Controller
      */
     private function detectFamily($familyName, $first, $last, $childFirst, $childLast)
     {
+        if ($this->currentSurveyId === $this->volunteerHourSurveyId2) {
+            $this->dl('SURVEY 2');
+        }
+        $this->dl("==> Running detection for ['$familyName', '$first', '$last', '$childFirst', '$childLast']");
         $possiblyFoundID = $this->getStudentsWithExactMatchName($childFirst, $childLast);
         if ($possiblyFoundID) {
-            $this->dl("Found ID $possiblyFoundID");
             return $possiblyFoundID;
         }
 
-        $this->dl("No clear match for student name {$childFirst} {$childLast}, checking Guardians...");
-
+        if ($childFirst === '' && $childLast === '') {
+            $this->dl("Student name is empty, checking Guardians...");
+        } else {
+            $this->dl("No clear match for student name {$childFirst} {$childLast}, checking Guardians...");
+        }
 
         $names = $this->detectDelimiter($familyName);
         $fnames = $this->detectDelimiter($first);
@@ -455,70 +466,64 @@ class SyncController extends Controller
                 $this->dl("Checking for guardian with last name $last and first name starting with $first");
                 $possiblyFoundID = $this->getGuardiansWithMatchingLastNameAndFirstNameStartingWith($first, $last);
                 if ($possiblyFoundID) {
-                    $this->dl("Found ID $possiblyFoundID");
                     return $possiblyFoundID;
                 }
                 $this->dl("Checking for guardians with very close edit distance");
                 $possiblyFoundID = $this->getGuardianWithVeryCloseEditDistance($first, $last);
                 if ($possiblyFoundID) {
-                    $this->dl("Found ID $possiblyFoundID");
                     return $possiblyFoundID;
                 }
-                $this->dl("Still haven't found $first $last.");
                 $this->dl("Checking for guardian with last name $last and first name containing $first");
                 $possiblyFoundID = $this->getGuardiansWithSameLastNameAndFirstNameContaining($first, $last);
                 if ($possiblyFoundID) {
                     return $possiblyFoundID;
                 }
-                $this->dl("Still haven't found $first $last.");
                 $this->dl("Checking for guardian with last name $last and first name containing $first");
                 $possiblyFoundID = $this->getGuardiansWithMatchingFirstNameButDifferentLastNameAsOtherFamily($first, $last);
                 if ($possiblyFoundID) {
                     return $possiblyFoundID;
                 }
-                $this->dl("Still haven't found $first $last.");
                 $this->dl("Checking for guardian with first name $first and last name containing $last");
                 $possiblyFoundID = $this->getGuardiansWithExactFirstNameAndLastNameContainingLast($first, $last);
                 if ($possiblyFoundID) {
                     return $possiblyFoundID;
                 }
-                $this->dl("Still haven't found $first $last.");
                 $this->dl("Checking for other guardians with last name $last");
                 $possiblyFoundID = $this->getGuardiansWithSameLastName($last);
                 if ($possiblyFoundID) {
                     return $possiblyFoundID;
                 }
-                $this->dl("Still haven't found $first $last.");
                 $this->dl("Checking for Guardians with last name $last and very similar first name to $first");
                 $possiblyFoundID = $this->getSimilarFirstNamesByLastName($first, $last);
                 if ($possiblyFoundID) {
                     return $possiblyFoundID;
                 }
-                $this->dl("Still haven't found $first $last.");
                 $this->dl("Checking for Guardians with similar last name to $last");
                 $possiblyFoundID = $this->getSimilarFirstAndLastName($first, $last);
                 if ($possiblyFoundID) {
                     return $possiblyFoundID;
                 }
-                $this->dl("Still haven't found $first $last.");
                 $this->dl("Checking if last name $last is unique to a family or individual in the school");
                 $possiblyFoundID = $this->checkIfLastNameIsUnique($first, $last);
                 if ($possiblyFoundID) {
                     return $possiblyFoundID;
                 }
-                $this->dl("Still haven't found $first $last.");
                 $this->dl("Checking for Guardians with the first and last name swapped, $last $first");
                 $possiblyFoundID = $this->getGuardiansWithSwappedFirstAndLast($first, $last);
                 if ($possiblyFoundID) {
                     return $possiblyFoundID;
                 }
-
-                $this->dl("Couldn't find $first $last at all, giving up");
-
             }
+        } else {
+            $this->dl("Checking for guardian with first name starting with $first and last name ending with $last");
+            $possiblyFoundID = $this->getGuardianWithFirstStartingWithFirstAndLastEndingWithLast($first, $last);
+            if ($possiblyFoundID) {
+                return $possiblyFoundID;
+            }
+
         }
 
-
+        $this->dl("Couldn't find $first $last at all, giving up");
 //        return $this->detectionOriginalMethod($first, $last, $names, $fnames, $lnames);
     }
 
@@ -575,6 +580,7 @@ class SyncController extends Controller
      */
     private function detectDelimiter($maybe_delimited_string)
     {
+        $maybe_delimited_string = trim($maybe_delimited_string);
         $delimiter = false;
         if ($this->hasDelimiter($maybe_delimited_string, '/')) {
             $delimiter = '/';
@@ -858,6 +864,22 @@ class SyncController extends Controller
         return false;
     }
 
+    private function getGuardianWithFirstStartingWithFirstAndLastEndingWithLast($first, $last)
+    {
+        $first = $this->trimAtDelimiter($first, 'first');
+        $last = $this->trimAtDelimiter($last, 'last');
+        $this->dl("Checking for name parts $first and $last");
+        $guardians_collection = YRCSGuardians::where('first', 'like', "$first%")->where('last', 'like', "%$last")->get();
+        if ($guardians_collection->count() === 1) {
+            $g = $guardians_collection->first();
+            $this->dl("Found Guardian {$g->first} {$g->last}");
+            $this->logEffectiveness(__FUNCTION__, 1);
+            return (int)$g->family_id;
+        }
+        $this->logEffectiveness(__FUNCTION__, -1);
+        return false;
+    }
+
     /**
      * @return string
      */
@@ -947,5 +969,21 @@ class SyncController extends Controller
                 ],
             ],
         ];
+    }
+
+    private function trimAtDelimiter($name, $firstOrLast)
+    {
+        $delimiters = [' ', '-'];
+        foreach ($delimiters as $d) {
+            $parts = explode($d, $name);
+            if (count($parts) > 1) {
+                if ($firstOrLast === 'first') {
+                    return $parts[0];
+                } else {
+                    return $parts[1];
+                }
+            }
+        }
+        return $name;
     }
 }
