@@ -2,7 +2,6 @@
 
 namespace App;
 
-use Gbrock\Table\Traits\Sortable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -17,7 +16,6 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $relationship
  * @property-read \App\YRCSFamilies $family
  * @property-read \Illuminate\Database\Eloquent\Collection|\App\YRCSStudents[] $students
- * @property-read mixed $is_sortable
  * @method static \Illuminate\Database\Query\Builder|\App\YRCSGuardians whereId($value)
  * @method static \Illuminate\Database\Query\Builder|\App\YRCSGuardians whereCreatedAt($value)
  * @method static \Illuminate\Database\Query\Builder|\App\YRCSGuardians whereUpdatedAt($value)
@@ -25,14 +23,11 @@ use Illuminate\Database\Eloquent\Model;
  * @method static \Illuminate\Database\Query\Builder|\App\YRCSGuardians whereFirst($value)
  * @method static \Illuminate\Database\Query\Builder|\App\YRCSGuardians whereLast($value)
  * @method static \Illuminate\Database\Query\Builder|\App\YRCSGuardians whereRelationship($value)
- * @method static \Illuminate\Database\Query\Builder|\App\YRCSGuardians sorted($field = false, $direction = false)
  */
 class YRCSGuardians extends Model
 {
-    use Sortable;
     protected $table = 'yrcs_guardians';
     protected $fillable = ['first', 'last', 'relationship', 'family_id'];
-    protected $sortable = ['first', 'last', 'relationship', 'family_id'];
 
     public function family()
     {

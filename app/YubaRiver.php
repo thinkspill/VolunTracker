@@ -2,7 +2,6 @@
 
 namespace App;
 
-use Gbrock\Table\Traits\Sortable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -17,8 +16,13 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $parent_first
  * @property string $grade
  * @property string $relationship
+ * @property string $email
+ * @property string $phone
+ * @property string $child_lives_with
  * @property string $city
- * @property-read mixed $is_sortable
+ * @property string $state
+ * @property string $address
+ * @property string $zip
  * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereId($value)
  * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereCreatedAt($value)
  * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereUpdatedAt($value)
@@ -28,13 +32,16 @@ use Illuminate\Database\Eloquent\Model;
  * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereParentFirst($value)
  * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereGrade($value)
  * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereRelationship($value)
+ * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereEmail($value)
+ * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver wherePhone($value)
+ * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereChildLivesWith($value)
  * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereCity($value)
- * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver sorted($field = false, $direction = false)
+ * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereState($value)
+ * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereAddress($value)
+ * @method static \Illuminate\Database\Query\Builder|\App\YubaRiver whereZip($value)
  */
 class YubaRiver extends Model
 {
-    use Sortable;
     protected $table = 'yuba_river';
     protected $fillable = ['student_first', 'student_last', 'parent_first', 'parent_last', 'grade', 'relationship', 'child_lives_with', 'city', 'state', 'zip', 'address'];
-    protected $sortable = ['student_first', 'student_last', 'parent_first', 'parent_last', 'grade', 'relationship'];
 }
