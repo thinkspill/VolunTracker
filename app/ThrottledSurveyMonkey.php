@@ -37,7 +37,7 @@ class ThrottledSurveyMonkey
 
     private function throttleSM()
     {
-        $this->throttle->throttle($this->throttle_id, 2, 2000);;
+        $this->throttle->throttle($this->throttle_id, 4, 10000);;
     }
 
     public function surveyMonkeyGetSurveyDetails($surveyID)

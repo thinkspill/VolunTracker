@@ -210,6 +210,9 @@ class SyncController extends Controller
     {
         $respondentList = $this->SM->surveyMonkeyGetRespondentList($surveyID, ['fields' => ['date_modified']]);
 
+        if (!isset($respondentList['data'])) {
+            dd('No response data', $respondentList);
+        }
         $this->totalRespondents += count($respondentList['data']['respondents']);
 
         $respondentsToRequest = [];
@@ -219,6 +222,9 @@ class SyncController extends Controller
         }
         $responses = $this->SM->surveyMonkeyGetResponses($surveyID, $respondentsToRequest);
 //        $responses = $this->getFakeResponses();
+        if (empty($responses['data'])) {
+            dd('No response from SM', $responses);
+        }
         $responses = $this->processResponses($responses['data']);
         return $responses;
     }
