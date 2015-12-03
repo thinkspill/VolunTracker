@@ -2,13 +2,12 @@
 
 namespace App\Http\Controllers\Home;
 
+use App\ElapsedMonths;
 use App\Http\Controllers\Controller;
-use App\TimeLog;
 use App\YRCSFamilies;
 use App\YRCSGuardians;
 use App\YRCSStudents;
-use Gbrock\Table\Table;
-use League\Period\Period;
+use DB;
 use Monolog\ErrorHandler;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
@@ -41,7 +40,8 @@ class HomeController extends Controller
         $guardianCount = YRCSGuardians::all()->count();
         $familyCount = YRCSFamilies::all()->count();
 
-        $totalHours = TimeLog::all()->sum('hours');
+//        $totalHours = TimeLog::all()->sum('hours');
+        $totalHours = (int) Db::table('time_logs')->whereBetween('date',['2015-08-01', '2015-12-01'])->sum('hours');
         $expectedMonthlyHours = 5 * $familyCount;
         $totalExpectedHours = $this->calcExpectedHours($expectedMonthlyHours);
 
@@ -76,15 +76,7 @@ class HomeController extends Controller
 
     private function monthsElapsed()
     {
-        $period = new Period('2015-08-19', '2016-06-03');
-        $now = date('F, Y');
-        $monthsElapsed = 0;
-        foreach ($period->getDatePeriod('1 MONTH') as $datetime) {
-            $monthsElapsed++;
-            if ($now === $datetime->format('F, Y')) {
-                break;
-            }
-        }
-        return $monthsElapsed;
+        $m = new ElapsedMonths();
+        return $m->elapsed();
     }
 }
