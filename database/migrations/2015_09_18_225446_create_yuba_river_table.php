@@ -22,7 +22,13 @@ class CreateYubaRiverTable extends Migration
             $table->string('parent_first');
             $table->string('grade');
             $table->string('relationship');
+            $table->string('email');
+            $table->string('phone');
+            $table->string('child_lives_with');
             $table->string('city');
+            $table->string('state');
+            $table->string('address');
+            $table->string('zip');
 
             $table->unique(['parent_last', 'parent_first', 'student_first']);
         });

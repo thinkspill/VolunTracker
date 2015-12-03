@@ -6,11 +6,10 @@ use App;
 use App\ElapsedMonths;
 use App\TimeLog;
 use App\YRCSFamilies;
-use Barryvdh\Snappy\IlluminateSnappyPdf;
+use DB;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Http\Requests;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Response;
 use PDF;
 
 class ReportController extends Controller
@@ -22,14 +21,30 @@ class ReportController extends Controller
      */
     public function index()
     {
+        $familyCount = YRCSFamilies::all()->count();
+//        $totalHours = TimeLog::all()->sum('hours');
+        $totalHours = (int) Db::table('time_logs')->whereBetween('date',['2015-08-01', '2015-12-01'])->sum('hours');
+        $expectedMonthlyHours = 5 * $familyCount;
+        $totalExpectedHours = $this->calcExpectedHours($expectedMonthlyHours);
+
         list($none, $under, $meets, $exceeds) = $this->generateReports();
         return view('report_layout', [
             'exceeds' => $exceeds,
             'meets' => $meets,
             'under' => $under,
             'none' => $none,
-            'improveMessage' => $this->howToImproveMessage()
+            'improveMessage' => $this->howToImproveMessage(),
+            'total_hours' => $totalHours,
+            'total_expected_hours' => $totalExpectedHours,
+            'ratio' => round($totalHours / $totalExpectedHours, 4) * 100,
         ]);
+    }
+
+    private function calcExpectedHours($expectedMonthlyHours)
+    {
+        $monthsElapsed = $this->monthsElapsed();
+        $totalExpectedHours = $expectedMonthlyHours * $monthsElapsed;
+        return $totalExpectedHours;
     }
 
     private function howToImproveMessage()
@@ -56,46 +71,12 @@ class ReportController extends Controller
 
     public function test(PDF $pdf)
     {
-//        return PDF::loadFile('http://www.github.com')->stream('github.pdf');
-        return PDF::loadFile('http://vol.dev/report')->stream('github.pdf');
-        list($none, $under, $meets, $exceeds) = $this->generateReports();
-        /** @var IlluminateSnappyPdf $snappy */
-        $snappy = App::make('snappy.pdf');
-
-        $html = (string)view('report_layout', [
-            'exceeds' => $exceeds,
-            'meets' => $meets,
-            'under' => $under,
-            'none' => $none,
-            'improveMessage' => $this->howToImproveMessage()
-        ]);
-
-        return new Response(
-            $snappy->getOutputFromHtml($html),
-            200,
-            array(
-                'Content-Type' => 'application/pdf',
-//                'Content-Disposition' => 'attachment; filename="file.pdf"'
-            )
-        );
+        return PDF::loadFile('http://vol.dev/report')->stream('yrcs-report.pdf');
     }
 
     public function pdf()
     {
-
-        list($none, $under, $meets, $exceeds) = $this->generateReports();
-        $data = [
-            'exceeds' => $exceeds,
-            'meets' => $meets,
-            'under' => $under,
-            'none' => $none,
-        ];
-        $pdf = PDF::loadView('printable', $data);
-        $pdf->output();
-#        ini_set('max_execution_time', 0);
-#        $pdf->stream('test.pdf');
-#        $pdf->stream()
-#        exit;
+        return PDF::loadFile('http://vol.dev/report')->stream('yrcs-report.pdf');
     }
 
     /**
@@ -137,6 +118,7 @@ class ReportController extends Controller
                     'family_id' => $f->family_id,
                     'guardians' => $f->guardians()->get(['first', 'last', 'relationship'])->toArray(),
                     'students' => $f->students()->get(['first', 'last'])->toArray(),
+                    'mailing_address' => $this->lookupMailingAddress($f->students()->get(['first', 'last'])->first()),
                     'hours' => 0,
                     'expected' => $expected_hours,
                     'ratio' => '0',
@@ -231,11 +213,31 @@ class ReportController extends Controller
             'students' => $f->students()->get(['first', 'last'])->toArray(),
             'hours' => $fam_sum,
             'expected' => $expected_hours,
+            'mailing_address' => $this->lookupMailingAddress($f->students()->get(['first', 'last'])->first()),
             'ratio' => round(($fam_sum / $expected_hours), 2) * 100,
             'log' => $log
         ];
 
         $d = $this->generateGreeting($d);
         return $d;
+    }
+
+    private function lookupMailingAddress(App\YRCSStudents $student)
+    {
+        $first = $student->first;
+        $last = $student->last;
+
+        $addr = DB::table('yuba_river')
+            ->select('parent_first', 'parent_last', 'address', 'city', 'state', 'zip')
+            ->where('student_first', $first)
+            ->where('student_last', $last)
+            ->where('child_lives_with', 't')
+            ->first();
+
+        if (isset($addr->parent_first, $addr->parent_last, $addr->address, $addr->city, $addr->state, $addr->zip)) {
+            return "{$addr->parent_first} {$addr->parent_last}<br>{$addr->address}<br>{$addr->city} {$addr->state} {$addr->zip}";
+        } elseif (isset($addr->parent_first, $addr->parent_last)) {
+            return "{$addr->parent_first} {$addr->parent_last}<br><br>";
+        } else return '';
     }
 }
