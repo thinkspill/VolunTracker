@@ -35,6 +35,6 @@ class YubaRiver extends Model
 {
     use Sortable;
     protected $table = 'yuba_river';
-    protected $fillable = ['student_first', 'student_last', 'parent_first', 'parent_last', 'grade', 'relationship'];
+    protected $fillable = ['student_first', 'student_last', 'parent_first', 'parent_last', 'grade', 'relationship', 'child_lives_with', 'city', 'state', 'zip', 'address'];
     protected $sortable = ['student_first', 'student_last', 'parent_first', 'parent_last', 'grade', 'relationship'];
 }
