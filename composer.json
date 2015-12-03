@@ -24,9 +24,10 @@
         "witty/laravel-table-view": "dev-master",
         "msieprawski/resource-table": "dev-master",
         "rap2hpoutre/similar-text-finder": "dev-master",
-        "barryvdh/laravel-dompdf": "^0.6.0@dev",
         "graphp/graphviz": "dev-master",
-        "davedevelopment/stiphle": "dev-master"
+        "davedevelopment/stiphle": "dev-master",
+        "barryvdh/laravel-snappy": "^0.2.0@dev",
+        "h4cc/wkhtmltopdf-amd64": "0.12.x"
     },
     "require-dev": {
         "fzaninotto/faker": "~1.4",

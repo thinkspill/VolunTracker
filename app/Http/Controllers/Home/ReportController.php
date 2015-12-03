@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Home;
 
 use App;
+use App\ElapsedMonths;
 use App\TimeLog;
 use App\YRCSFamilies;
+use Barryvdh\Snappy\IlluminateSnappyPdf;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Http\Request;
 use App\Http\Requests;
 use App\Http\Controllers\Controller;
-use League\Period\Period;
+use Illuminate\Http\Response;
 use PDF;
 
 class ReportController extends Controller
@@ -22,54 +23,88 @@ class ReportController extends Controller
     public function index()
     {
         list($none, $under, $meets, $exceeds) = $this->generateReports();
-
-//        dd($exceeds, $meets, $under, $none);
-
-        return view('report', [
+        return view('report_layout', [
             'exceeds' => $exceeds,
             'meets' => $meets,
             'under' => $under,
             'none' => $none,
+            'improveMessage' => $this->howToImproveMessage()
         ]);
     }
 
-
-    public function pdf(PDF $p)
+    private function howToImproveMessage()
     {
+        ob_start();
+        ?>
+        <p style="font-weight: bold;">Here are some ways to improve your family's volunteerism report:</p>
+        <ol>
+            <li>
+                You may need to &nbsp;<b>volunteer more often</b>. If you need volunteer hours, please ask your class teacher, class parent or PC rep how you can help out. Volunteer needs are also posted in the <i>Current</i>. Each family is asked to volunteer 5 hours per month.
+            </li>
+            <li>
+                Many people volunteer but forget to &nbsp;<b>log volunteer hours</b>. Please be sure to log your hours on the school website: <b>yubariverschool.org/volunteers</b>
+            </li>
+            <li>
+                This is a new system and &nbsp;<b>we may have overlooked your hours.</b> &nbsp;Please email <b>yrcs.volunteer@gmail.com</b> if this is the case.
+            </li>
+        </ol>
+        <?php
+
+        return ob_get_clean();
+
+    }
+
+    public function test(PDF $pdf)
+    {
+//        return PDF::loadFile('http://www.github.com')->stream('github.pdf');
+        return PDF::loadFile('http://vol.dev/report')->stream('github.pdf');
         list($none, $under, $meets, $exceeds) = $this->generateReports();
+        /** @var IlluminateSnappyPdf $snappy */
+        $snappy = App::make('snappy.pdf');
 
-//        ~r($none, $under, $meets, $exceeds);
-
-//        ~r(count($none), count($under), count($meets), count($exceeds));
-
-        /** @var \DOMPDF $pdf */
-        $pdf = $p->loadView('printable', [
+        $html = (string)view('report_layout', [
             'exceeds' => $exceeds,
             'meets' => $meets,
             'under' => $under,
             'none' => $none,
+            'improveMessage' => $this->howToImproveMessage()
         ]);
 
-        ini_set('max_execution_time', 0);
-        $pdf->stream('test.pdf');
-        exit;
+        return new Response(
+            $snappy->getOutputFromHtml($html),
+            200,
+            array(
+                'Content-Type' => 'application/pdf',
+//                'Content-Disposition' => 'attachment; filename="file.pdf"'
+            )
+        );
+    }
+
+    public function pdf()
+    {
+
+        list($none, $under, $meets, $exceeds) = $this->generateReports();
+        $data = [
+            'exceeds' => $exceeds,
+            'meets' => $meets,
+            'under' => $under,
+            'none' => $none,
+        ];
+        $pdf = PDF::loadView('printable', $data);
+        $pdf->output();
+#        ini_set('max_execution_time', 0);
+#        $pdf->stream('test.pdf');
+#        $pdf->stream()
+#        exit;
     }
 
     /**
      * @return int
      */
-    private function months_elapsed()
+    private function monthsElapsed()
     {
-        $period = new Period('2015-08-19', '2016-06-03');
-        $now = date('F, Y');
-        $months_elapsed = 0;
-        foreach ($period->getDatePeriod('1 MONTH') as $datetime) {
-            $months_elapsed++;
-            if ($now === $datetime->format('F, Y')) {
-                break;
-            }
-        }
-        return $months_elapsed;
+        $m = new ElapsedMonths();
+        return $m->elapsed();
     }
 
     private function hasDelimiter($maybe_delimited_string, $delimiter)
@@ -82,15 +117,19 @@ class ReportController extends Controller
      */
     private function generateReports()
     {
-        $expected_hours = 5 * $this->months_elapsed();
+        $expected_hours = 5 * $this->monthsElapsed();
 
         $all = YRCSFamilies::all();
 
         $exceeds = $meets = $under = $none = [];
 
+        $c = 0;
         foreach ($all as $f) {
-            /** @var HasMany $hours */
+//            if ($c > 10) {
+//                break;
+//            }
             /** @var YRCSFamilies $f */
+            /** @var HasMany $hours */
             $hours = $f->hours();
             $hoursLoaded = $hours->getEager();
             if (!count($hoursLoaded)) {
@@ -100,7 +139,8 @@ class ReportController extends Controller
                     'students' => $f->students()->get(['first', 'last'])->toArray(),
                     'hours' => 0,
                     'expected' => $expected_hours,
-                    'ratio' => '0%'
+                    'ratio' => '0',
+                    'count' => $c
                 ];
 
                 $d = $this->generateGreeting($d);
@@ -108,19 +148,29 @@ class ReportController extends Controller
                 $none[] = $d;
             } else {
                 $fam_sum = 0;
+                $log = [];
                 foreach ($hoursLoaded as $hour) {
+                    if ($hour->date < '2015-08-01' || $hour->date > '2015-12-01') {
+//                        echo $hour->date . ' skipping';
+//                        exit;
+                        continue;
+                    }
                     /** @var TimeLog $hour */
                     $fam_sum += $hour->hours;
+                    $log[] = ['date' => $hour->date, 'hours' => $hour->hours];
+
                 }
+
                 if ($fam_sum > $expected_hours) {
-                    $exceeds[] = $this->buildFamArray($f, $fam_sum, $expected_hours);
+                    $exceeds[] = $this->buildFamArray($f, $fam_sum, $expected_hours, $log);
                 }
                 if ($fam_sum === $expected_hours) {
-                    $meets[] = $this->buildFamArray($f, $fam_sum, $expected_hours);
+                    $meets[] = $this->buildFamArray($f, $fam_sum, $expected_hours, $log);
                 }
                 if ($fam_sum < $expected_hours) {
-                    $under[] = $this->buildFamArray($f, $fam_sum, $expected_hours);
+                    $under[] = $this->buildFamArray($f, $fam_sum, $expected_hours, $log);
                 }
+                $c++;
             }
         }
         return array($none, $under, $meets, $exceeds);
@@ -133,8 +183,7 @@ class ReportController extends Controller
     private function generateGreeting($d)
     {
 
-        if (count($d['guardians']) === 0)
-        {
+        if (count($d['guardians']) === 0) {
             $d['guardian_name_greeting'] = 'Parents &amp; Guardians';
             return $d;
         }
@@ -174,7 +223,7 @@ class ReportController extends Controller
      * @param $expected_hours
      * @return array|mixed
      */
-    private function buildFamArray($f, $fam_sum, $expected_hours)
+    private function buildFamArray($f, $fam_sum, $expected_hours, $log)
     {
         $d = [
             'family_id' => $f->family_id,
@@ -182,7 +231,8 @@ class ReportController extends Controller
             'students' => $f->students()->get(['first', 'last'])->toArray(),
             'hours' => $fam_sum,
             'expected' => $expected_hours,
-            'ratio' => round(($fam_sum / $expected_hours), 2) * 100
+            'ratio' => round(($fam_sum / $expected_hours), 2) * 100,
+            'log' => $log
         ];
 
         $d = $this->generateGreeting($d);
