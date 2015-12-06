@@ -33,8 +33,8 @@ class HomeController extends Controller
 
     public function index()
     {
-        $students = YRCSStudents::sorted()->orderBy('family_id')->get();
-        $families = YRCSFamilies::sorted()->orderBy('id')->get();
+        $students = YRCSStudents::all()->sortBy('family_id');
+        $families = YRCSFamilies::all()->sortBy('id');
         $guardians = YRCSGuardians::get();
         $studentCount = YRCSStudents::all()->count();
         $guardianCount = YRCSGuardians::all()->count();
