@@ -4,8 +4,8 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "hash": "9390f6a58819b1145ccdc6dc50b00eef",
-    "content-hash": "01e237b890cfad22aaf1a1c1e87d595e",
+    "hash": "9ce92a9849007422efbed12a8c53be34",
+    "content-hash": "cd0c3a1b689812f73bd2a7631ccf43a8",
     "packages": [
         {
             "name": "ascension/php-surveymonkey",
@@ -973,56 +973,6 @@
             "description": "jQuery JavaScript Library",
             "homepage": "http://jquery.com",
             "time": "2015-10-09 00:55:51"
-        },
-        {
-            "name": "gbrock/laravel-table",
-            "version": "0.2.4",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/gbrock/laravel-table.git",
-                "reference": "4c8c15ad13f7e1a125c014e941b3ca1365243aa7"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/gbrock/laravel-table/zipball/4c8c15ad13f7e1a125c014e941b3ca1365243aa7",
-                "reference": "4c8c15ad13f7e1a125c014e941b3ca1365243aa7",
-                "shasum": ""
-            },
-            "require": {
-                "laravel/framework": "5.*",
-                "php": ">=5.3.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "4.5.*"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Gbrock\\Table\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Greg Brock",
-                    "email": "contact@gbrock.com",
-                    "homepage": "http://gbrock.com",
-                    "role": "Developer"
-                }
-            ],
-            "description": "Table functionality for Laravel models",
-            "keywords": [
-                "filtering",
-                "html",
-                "laravel",
-                "model",
-                "sorting",
-                "table"
-            ],
-            "time": "2015-05-14 04:52:51"
         },
         {
             "name": "graphp/algorithms",

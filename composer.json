@@ -19,7 +19,6 @@
         "monolog/monolog": "^1.17",
         "league/csv": "^7.1",
         "barryvdh/laravel-debugbar": "^2.0",
-        "gbrock/laravel-table": "^0.2.4",
         "league/period": "^3.0",
         "witty/laravel-table-view": "dev-master",
         "msieprawski/resource-table": "dev-master",

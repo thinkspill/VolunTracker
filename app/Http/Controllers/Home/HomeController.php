@@ -35,17 +35,17 @@ class HomeController extends Controller
     {
         $students = YRCSStudents::all()->sortBy('family_id');
         $families = YRCSFamilies::all()->sortBy('id');
-        $guardians = YRCSGuardians::get();
+        $guardians = YRCSGuardians::all();
         $studentCount = YRCSStudents::all()->count();
         $guardianCount = YRCSGuardians::all()->count();
         $familyCount = YRCSFamilies::all()->count();
 
 //        $totalHours = TimeLog::all()->sum('hours');
-        $totalHours = (int) Db::table('time_logs')->whereBetween('date',['2015-08-01', '2015-12-01'])->sum('hours');
+        $totalHours = (int)Db::table('time_logs')->whereBetween('date', ['2015-08-01', '2015-12-01'])->sum('hours');
         $expectedMonthlyHours = 5 * $familyCount;
         $totalExpectedHours = $this->calcExpectedHours($expectedMonthlyHours);
 
-        return view('tables', [
+        return view('index', [
             'families' => $families,
             'guardians' => $guardians,
             'students' => $students,

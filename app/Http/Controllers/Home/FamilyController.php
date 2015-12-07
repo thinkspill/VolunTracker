@@ -36,7 +36,7 @@ class FamilyController extends Controller
     /**
      * Store a newly created resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param  \Illuminate\Http\Request $request
      * @return \Illuminate\Http\Response
      */
     public function store(Request $request)
@@ -47,33 +47,16 @@ class FamilyController extends Controller
     /**
      * Display the specified resource.
      *
-     * @param  int  $id
+     * @param  int $id
      * @return \Illuminate\Http\Response
      */
     public function show($id)
     {
-        $students = YRCSStudents::whereFamilyId($id)->sorted()->paginate();
-
-        $stu_table = (new Table)->create($students, ['first', 'last', 'family_id']);
-        $stu_table->setView('tablecondensed');
-
-        $guardians = YRCSGuardians::whereFamilyId($id)->sorted()->paginate();
-        $guardian_table = (new Table)->create($guardians, ['first', 'last', 'relationship', 'family_id']);
-        $guardian_table->setView('tablecondensed');
-
-        $families = YRCSFamilies::whereId($id)->sorted()->paginate();
-        $fam_table = (new Table)->create($families, ['family_id']);
-        $fam_table->setView('tablecondensed');
-
-        $hours = TimeLog::whereFamilyId($id)->sorted()->paginate();
-        $hours_table = (new Table)->create($hours, ['date', 'hours']);
-        $hours_table->setView('tablecondensed');
-
         return view('family', [
-            'fam_table' => $fam_table,
-            'guardians_table' => $guardian_table,
-            'students_table' => $stu_table,
-            'hours_table' => $hours_table,
+            'families' => YRCSFamilies::whereId($id)->paginate(),
+            'guardians' => YRCSGuardians::whereFamilyId($id)->paginate(),
+            'students' => YRCSStudents::whereFamilyId($id)->paginate(),
+            'hours' => TimeLog::whereFamilyId($id)->paginate(),
         ]);
 
     }
@@ -81,7 +64,7 @@ class FamilyController extends Controller
     /**
      * Show the form for editing the specified resource.
      *
-     * @param  int  $id
+     * @param  int $id
      * @return \Illuminate\Http\Response
      */
     public function edit($id)
@@ -92,8 +75,8 @@ class FamilyController extends Controller
     /**
      * Update the specified resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
+     * @param  \Illuminate\Http\Request $request
+     * @param  int $id
      * @return \Illuminate\Http\Response
      */
     public function update(Request $request, $id)
@@ -104,7 +87,7 @@ class FamilyController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  int  $id
+     * @param  int $id
      * @return \Illuminate\Http\Response
      */
     public function destroy($id)

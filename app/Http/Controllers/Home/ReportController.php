@@ -28,7 +28,7 @@ class ReportController extends Controller
         $totalExpectedHours = $this->calcExpectedHours($expectedMonthlyHours);
 
         list($none, $under, $meets, $exceeds) = $this->generateReports();
-        return view('report_layout', [
+        return view('printable', [
             'exceeds' => $exceeds,
             'meets' => $meets,
             'under' => $under,
