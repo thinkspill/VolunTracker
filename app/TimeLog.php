@@ -5,14 +5,14 @@ namespace App;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * App\TimeLog
+ * App\TimeLog.
  *
- * @property integer $id
+ * @property int $id
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- * @property integer $family_id
+ * @property int $family_id
  * @property string $date
- * @property integer $hours
+ * @property int $hours
  * @property-read \App\YRCSFamilies $family
  * @method static \Illuminate\Database\Query\Builder|\App\TimeLog whereId($value)
  * @method static \Illuminate\Database\Query\Builder|\App\TimeLog whereCreatedAt($value)

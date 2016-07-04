@@ -5,12 +5,12 @@ namespace App;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * App\YRCSStudents
+ * App\YRCSStudents.
  *
- * @property integer $id
+ * @property int $id
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- * @property integer $family_id
+ * @property int $family_id
  * @property string $first
  * @property string $last
  * @property-read \App\YRCSFamilies $family

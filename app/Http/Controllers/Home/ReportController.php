@@ -8,7 +8,6 @@ use App\TimeLog;
 use App\YRCSFamilies;
 use DB;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Http\Requests;
 use App\Http\Controllers\Controller;
 use PDF;
 
@@ -23,11 +22,12 @@ class ReportController extends Controller
     {
         $familyCount = YRCSFamilies::all()->count();
 //        $totalHours = TimeLog::all()->sum('hours');
-        $totalHours = (int) Db::table('time_logs')->whereBetween('date',['2015-08-01', '2015-12-01'])->sum('hours');
+        $totalHours = (int) Db::table('time_logs')->whereBetween('date', ['2015-08-01', '2015-12-01'])->sum('hours');
         $expectedMonthlyHours = 5 * $familyCount;
         $totalExpectedHours = $this->calcExpectedHours($expectedMonthlyHours);
 
         list($none, $under, $meets, $exceeds) = $this->generateReports();
+
         return view('printable', [
             'exceeds' => $exceeds,
             'meets' => $meets,
@@ -44,6 +44,7 @@ class ReportController extends Controller
     {
         $monthsElapsed = $this->monthsElapsed();
         $totalExpectedHours = $expectedMonthlyHours * $monthsElapsed;
+
         return $totalExpectedHours;
     }
 
@@ -66,7 +67,6 @@ class ReportController extends Controller
         <?php
 
         return ob_get_clean();
-
     }
 
     public function test(PDF $pdf)
@@ -85,6 +85,7 @@ class ReportController extends Controller
     private function monthsElapsed()
     {
         $m = new ElapsedMonths();
+
         return $m->elapsed();
     }
 
@@ -106,14 +107,14 @@ class ReportController extends Controller
 
         $c = 0;
         foreach ($all as $f) {
-//            if ($c > 10) {
+            //            if ($c > 10) {
 //                break;
 //            }
-            /** @var YRCSFamilies $f */
+            /* @var YRCSFamilies $f */
             /** @var HasMany $hours */
             $hours = $f->hours();
             $hoursLoaded = $hours->getEager();
-            if (!count($hoursLoaded)) {
+            if (! count($hoursLoaded)) {
                 $d = [
                     'family_id' => $f->family_id,
                     'guardians' => $f->guardians()->get(['first', 'last', 'relationship'])->toArray(),
@@ -122,7 +123,7 @@ class ReportController extends Controller
                     'hours' => 0,
                     'expected' => $expected_hours,
                     'ratio' => '0',
-                    'count' => $c
+                    'count' => $c,
                 ];
 
                 $d = $this->generateGreeting($d);
@@ -133,14 +134,13 @@ class ReportController extends Controller
                 $log = [];
                 foreach ($hoursLoaded as $hour) {
                     if ($hour->date < '2015-08-01' || $hour->date > '2015-12-01') {
-//                        echo $hour->date . ' skipping';
+                        //                        echo $hour->date . ' skipping';
 //                        exit;
                         continue;
                     }
-                    /** @var TimeLog $hour */
+                    /* @var TimeLog $hour */
                     $fam_sum += $hour->hours;
                     $log[] = ['date' => $hour->date, 'hours' => $hour->hours];
-
                 }
 
                 if ($fam_sum > $expected_hours) {
@@ -155,7 +155,8 @@ class ReportController extends Controller
                 $c++;
             }
         }
-        return array($none, $under, $meets, $exceeds);
+
+        return [$none, $under, $meets, $exceeds];
     }
 
     /**
@@ -164,9 +165,9 @@ class ReportController extends Controller
      */
     private function generateGreeting($d)
     {
-
         if (count($d['guardians']) === 0) {
             $d['guardian_name_greeting'] = 'Parents &amp; Guardians';
+
             return $d;
         }
 
@@ -187,15 +188,16 @@ class ReportController extends Controller
                 $d['guardian_name_greeting'] = $gnames[0];
                 break;
             case 2:
-                $d['guardian_name_greeting'] = $gnames[0] . " and " . $gnames[1];
+                $d['guardian_name_greeting'] = $gnames[0].' and '.$gnames[1];
                 break;
             case 3:
-                $d['guardian_name_greeting'] = $gnames[0] . ", " . $gnames[1] . " and " . $gnames[2];
+                $d['guardian_name_greeting'] = $gnames[0].', '.$gnames[1].' and '.$gnames[2];
                 break;
             case 4:
-                $d['guardian_name_greeting'] = $gnames[0] . ", " . $gnames[1] . ", " . $gnames[2] . " and " . $gnames[3];
+                $d['guardian_name_greeting'] = $gnames[0].', '.$gnames[1].', '.$gnames[2].' and '.$gnames[3];
                 break;
         }
+
         return $d;
     }
 
@@ -215,10 +217,11 @@ class ReportController extends Controller
             'expected' => $expected_hours,
             'mailing_address' => $this->lookupMailingAddress($f->students()->get(['first', 'last'])->first()),
             'ratio' => round(($fam_sum / $expected_hours), 2) * 100,
-            'log' => $log
+            'log' => $log,
         ];
 
         $d = $this->generateGreeting($d);
+
         return $d;
     }
 
@@ -238,6 +241,8 @@ class ReportController extends Controller
             return "{$addr->parent_first} {$addr->parent_last}<br>{$addr->address}<br>{$addr->city} {$addr->state} {$addr->zip}";
         } elseif (isset($addr->parent_first, $addr->parent_last)) {
             return "{$addr->parent_first} {$addr->parent_last}<br><br>";
-        } else return '';
+        } else {
+            return '';
+        }
     }
 }

@@ -5,12 +5,12 @@ namespace App;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * App\YRCSGuardians
+ * App\YRCSGuardians.
  *
- * @property integer $id
+ * @property int $id
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- * @property integer $family_id
+ * @property int $family_id
  * @property string $first
  * @property string $last
  * @property string $relationship
@@ -38,5 +38,4 @@ class YRCSGuardians extends Model
     {
         return $this->belongsToMany('App\YRCSStudents', 'yrcs_students_to_guardians', 'guardian_id', 'student_id');
     }
-
 }

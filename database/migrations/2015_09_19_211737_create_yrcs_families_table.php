@@ -16,7 +16,6 @@ class CreateYrcsFamiliesTable extends Migration
             $table->increments('id');
             $table->timestamps();
         });
-
     }
 
     /**

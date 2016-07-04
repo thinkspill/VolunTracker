@@ -25,7 +25,7 @@ class ThrottledSurveyMonkey
     }
 
     /**
-     * Sets up the SurveyMonkey Cache
+     * Sets up the SurveyMonkey Cache.
      * @throws RuntimeException
      */
     private function initCache()
@@ -37,12 +37,12 @@ class ThrottledSurveyMonkey
 
     private function throttleSM()
     {
-        $this->throttle->throttle($this->throttle_id, 4, 10000);;
+        $this->throttle->throttle($this->throttle_id, 4, 10000);
     }
 
     public function surveyMonkeyGetSurveyDetails($surveyID)
     {
-        $item = $this->pool->getItem('/surveyDetails/' . $surveyID);
+        $item = $this->pool->getItem('/surveyDetails/'.$surveyID);
         $surveyDetails = $item->get();
         if ($item->isMiss()) {
             $this->dl('Requesting survey details from Survey Monkey and saving to cache');
@@ -50,16 +50,18 @@ class ThrottledSurveyMonkey
             $this->throttleSM();
             $surveyDetails = $this->SM->getSurveyDetails($surveyID);
             $item->set($surveyDetails);
+
             return $surveyDetails;
         }
 
         $this->dl('Reusing cached survey details');
+
         return $surveyDetails;
     }
 
     public function surveyMonkeyGetRespondentList($surveyID, $array)
     {
-        $item = $this->pool->getItem('/reslist/' . $surveyID);
+        $item = $this->pool->getItem('/reslist/'.$surveyID);
         $respondentsToRequest = [];
         $respondentList = $item->get();
         $this->dl($item->isMiss());
@@ -78,7 +80,7 @@ class ThrottledSurveyMonkey
 
     public function surveyMonkeyGetResponses($surveyID, $respondentsToRequest)
     {
-        $item = $this->pool->getItem('/responses/' . $surveyID);
+        $item = $this->pool->getItem('/responses/'.$surveyID);
         $responses = $item->get();
         if ($item->isMiss()) {
             $this->dl('Requesting responses from Survey Monkey and saving to cache');
@@ -89,9 +91,7 @@ class ThrottledSurveyMonkey
         } else {
             $this->dl('Reusing cached respondent list');
         }
+
         return $responses;
     }
-
-
-
 }

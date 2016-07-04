@@ -13,11 +13,9 @@ use Monolog\ErrorHandler;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
 use Monolog\Logger;
-use Stash\Driver\FileSystem;
 
 class HashController extends Controller
 {
-
     public function __construct()
     {
         $logger = new Logger('log');
@@ -52,15 +50,15 @@ class HashController extends Controller
         try {
             $s = YRCSStudents::updateOrCreate(
                 [
-                    'first' => $u->student_first, 'last' => $u->student_last
+                    'first' => $u->student_first, 'last' => $u->student_last,
                 ],
                 [
-                    'first' => $u->student_first, 'last' => $u->student_last
+                    'first' => $u->student_first, 'last' => $u->student_last,
                 ]
             );
             $s->save();
         } catch (\Exception $e) {
-//            r($e);
+            //            r($e);
         }
     }
 
@@ -70,22 +68,19 @@ class HashController extends Controller
             ->select(DB::raw('student_first, student_last, parent_first, parent_last, relationship'))
             ->get();
         foreach ($users as $u) {
-            /** @var YubaRiver $u */
+            /* @var YubaRiver $u */
             try {
-
                 $p = YRCSGuardians::updateOrCreate(
                     [
-                        'first' => $u->parent_first, 'last' => $u->parent_last
+                        'first' => $u->parent_first, 'last' => $u->parent_last,
                     ],
                     [
-                        'first' => $u->parent_first, 'last' => $u->parent_last, 'relationship' => $u->relationship
+                        'first' => $u->parent_first, 'last' => $u->parent_last, 'relationship' => $u->relationship,
                     ]
                 );
                 $p->save();
             } catch (Exception $e) {
-
             }
-
         }
     }
 
@@ -97,9 +92,9 @@ class HashController extends Controller
             /** @var Collection $families */
             $families = YubaRiver::whereStudentFirst($student->first)->whereStudentLast($student->last)->get(['parent_first', 'parent_last']);
             foreach ($families as $family) {
-                /** @var YubaRiver $family */
+                /* @var YubaRiver $family */
                 /** @var Collection $res */
-                /** @var YRCSGuardians $guardian */
+                /* @var YRCSGuardians $guardian */
                 $res = YRCSGuardians::whereFirst($family->parent_first)->whereLast($family->parent_last)->get(['id']);
                 $guardian = $res->first();
                 try {

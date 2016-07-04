@@ -19,8 +19,7 @@ use Monolog\Logger;
 use ref;
 
 /**
- * Class SyncController
- * @package App\Http\Controllers\Home
+ * Class SyncController.
  */
 class SyncController extends Controller
 {
@@ -82,7 +81,7 @@ class SyncController extends Controller
     }
 
     /**
-     * Sets up some output configs
+     * Sets up some output configs.
      * @throws \Exception
      */
     private function initConfig()
@@ -90,16 +89,15 @@ class SyncController extends Controller
         try {
             ref::config('expLvl', -1);
             ref::config('maxDepth', 0);
-            if (!ini_get('auto_detect_line_endings')) {
+            if (! ini_get('auto_detect_line_endings')) {
                 ini_set('auto_detect_line_endings', '1');
             }
         } catch (\Exception $e) {
-
         }
     }
 
     /**
-     * Sets up error handler
+     * Sets up error handler.
      */
     private function initErrorHandler()
     {
@@ -109,7 +107,7 @@ class SyncController extends Controller
     }
 
     /**
-     * Sets up the survey IDs
+     * Sets up the survey IDs.
      */
     private function configSurveyIDs()
     {
@@ -118,7 +116,7 @@ class SyncController extends Controller
 
         $this->allSurveyIDs = [
             $this->volunteerHourSurveyId,
-            $this->volunteerHourSurveyId2
+            $this->volunteerHourSurveyId2,
         ];
     }
 
@@ -148,6 +146,7 @@ class SyncController extends Controller
         $surveyDetails = $this->SM->surveyMonkeyGetSurveyDetails($surveyID);
         $questions = $this->extractQuestions($surveyDetails);
         $questions = $this->processQuestions($questions);
+
         return $questions;
     }
 
@@ -161,6 +160,7 @@ class SyncController extends Controller
         foreach ($surveyDetails['data']['pages'][0]['questions'] as $question) {
             $questions[] = $question;
         }
+
         return $questions;
     }
 
@@ -176,9 +176,10 @@ class SyncController extends Controller
             $questions[$val['heading']] = [
 //            $questions[$val['question_id']] = [
                 'question' => $val['heading'],
-                'answers' => $this->extractAnswers($val['answers'])
+                'answers' => $this->extractAnswers($val['answers']),
             ];
         }
+
         return $questions;
     }
 
@@ -199,6 +200,7 @@ class SyncController extends Controller
 //                $r[$this->t($a['answer_id'])] = $a['text'];
             }
         }
+
         return $r;
     }
 
@@ -210,7 +212,7 @@ class SyncController extends Controller
     {
         $respondentList = $this->SM->surveyMonkeyGetRespondentList($surveyID, ['fields' => ['date_modified']]);
 
-        if (!isset($respondentList['data'])) {
+        if (! isset($respondentList['data'])) {
             dd('No response data', $respondentList);
         }
         $this->totalRespondents += count($respondentList['data']['respondents']);
@@ -226,6 +228,7 @@ class SyncController extends Controller
             dd('No response from SM', $responses);
         }
         $responses = $this->processResponses($responses['data']);
+
         return $responses;
     }
 
@@ -256,6 +259,7 @@ class SyncController extends Controller
                 }
             }
         }
+
         return $resp;
     }
 
@@ -280,6 +284,7 @@ class SyncController extends Controller
             if (isset($this->aLookup[$id])) {
                 $return = $this->aLookup[$id];
                 $return = preg_replace('/[()]/', '', $return);
+
                 return $return;
             }
         }
@@ -289,6 +294,7 @@ class SyncController extends Controller
         if ($type === 'r') {
             return isset($this->rLookup[$id]) ? $this->rLookup[$id] : '';
         }
+
         return '';
     }
 
@@ -299,9 +305,8 @@ class SyncController extends Controller
     private function parseHoursToFamilyId($responses)
     {
         $log = [];
-        $this->dl('Found ' . count($responses) . ' raw responses');
+        $this->dl('Found '.count($responses).' raw responses');
         foreach ($responses as $date => $r) {
-
             $childFirst = $childLast = '';
             $childNameField = 'Child\'s First and Last Name (this is how we identify your family, only one child\'s name is needed)';
             $childFirstNameField = 'Child\'s First Name';
@@ -320,8 +325,8 @@ class SyncController extends Controller
 
             if (isset($r[$howManyHoursField][0])) {
                 $hours = $r[$howManyHoursField][0];
-            } elseif (isset($r[$howManyHoursField][""])) {
-                $hours = $r[$howManyHoursField][""];
+            } elseif (isset($r[$howManyHoursField][''])) {
+                $hours = $r[$howManyHoursField][''];
             } elseif (isset($r[$howManyHoursField]['Other please specify'])) {
                 $hours = $r[$howManyHoursField]['Other please specify'];
             } else {
@@ -340,25 +345,25 @@ class SyncController extends Controller
 
 
             $familyLastName = '';
-            if (!empty($this->getFamilyLastNameField($r))) {
+            if (! empty($this->getFamilyLastNameField($r))) {
                 $familyLastName = $this->getFamilyLastNameField($r);
-            } elseif (!empty($this->getYourLastNameField($r))) {
+            } elseif (! empty($this->getYourLastNameField($r))) {
                 $familyLastName = $this->getYourLastNameField($r);
             }
 
             $firstName = false;
-            if (!empty($this->getYourFirstNameField($r))) {
+            if (! empty($this->getYourFirstNameField($r))) {
                 $firstName = $this->getYourFirstNameField($r);
             }
             $lastName = false;
-            if (!empty($this->getYourLastNameField($r))) {
+            if (! empty($this->getYourLastNameField($r))) {
                 $lastName = $this->getYourLastNameField($r);
             }
             $f = $this->detectFamily($familyLastName, $firstName, $lastName, $childFirst, $childLast);
             if ($f) {
                 $this->dl("<== Found ID $f");
             } else {
-                $this->dl("Family ID not found");
+                $this->dl('Family ID not found');
             }
             $classGradeField = $this->getClassGradeField();
             $class = $r[$classGradeField]['0'];
@@ -367,9 +372,10 @@ class SyncController extends Controller
                 'family' => $familyLastName,
                 'class' => $class,
                 'hours' => $hours,
-                'family_id' => $f
+                'family_id' => $f,
             ];
         }
+
         return $log;
     }
 
@@ -400,13 +406,17 @@ class SyncController extends Controller
                     return $r['Tell us about yourself']['Family Last Name'];
                 } elseif (isset($r['Tell us about yourself']['Your Last Name'])) {
                     return $r['Tell us about yourself']['Your Last Name'];
-                } else return false;
+                } else {
+                    return false;
+                }
             case $this->volunteerHourSurveyId2:
                 if (isset($r['Tell us about yourself']['Family Last Name'])) {
                     return $r['Tell us about yourself']['Family Last Name'];
                 } elseif (isset($r['Tell us about yourself']['Your Last Name'])) {
                     return $r['Tell us about yourself']['Your Last Name'];
-                } else return false;
+                } else {
+                    return false;
+                }
         }
     }
 
@@ -448,7 +458,7 @@ class SyncController extends Controller
         }
 
         if ($childFirst === '' && $childLast === '') {
-            $this->dl("Student name is empty, checking Guardians...");
+            $this->dl('Student name is empty, checking Guardians...');
         } else {
             $this->dl("No clear match for student name {$childFirst} {$childLast}, checking Guardians...");
         }
@@ -474,7 +484,7 @@ class SyncController extends Controller
                 if ($possiblyFoundID) {
                     return $possiblyFoundID;
                 }
-                $this->dl("Checking for guardians with very close edit distance");
+                $this->dl('Checking for guardians with very close edit distance');
                 $possiblyFoundID = $this->getGuardianWithVeryCloseEditDistance($first, $last);
                 if ($possiblyFoundID) {
                     return $possiblyFoundID;
@@ -526,7 +536,6 @@ class SyncController extends Controller
             if ($possiblyFoundID) {
                 return $possiblyFoundID;
             }
-
         }
 
         $this->dl("Couldn't find $first $last at all, giving up");
@@ -545,13 +554,16 @@ class SyncController extends Controller
         if ($student->count() === 1) {
             $this->dl("Found exact match for student {$childFirst} {$childLast}, returning {$student->first()->family_id}");
             $this->logEffectiveness(__FUNCTION__, 1);
+
             return $student->first()->family_id;
         } elseif ($student->count() > 1) {
             $this->dl("Found more than one match for student {$childFirst} {$childLast}, confusing....");
             $this->logEffectiveness(__FUNCTION__, -1);
+
             return false;
         } else {
             $this->logEffectiveness(__FUNCTION__, -1);
+
             return false;
         }
     }
@@ -562,13 +574,13 @@ class SyncController extends Controller
      */
     private function logEffectiveness($__FUNCTION__, $int)
     {
-        if (!isset($this->stats[$__FUNCTION__]['success'])) {
+        if (! isset($this->stats[$__FUNCTION__]['success'])) {
             $this->stats[$__FUNCTION__]['success'] = 0;
         }
-        if (!isset($this->stats[$__FUNCTION__]['fail'])) {
+        if (! isset($this->stats[$__FUNCTION__]['fail'])) {
             $this->stats[$__FUNCTION__]['fail'] = 0;
         }
-        if (!isset($this->stats['attempts'])) {
+        if (! isset($this->stats['attempts'])) {
             $this->stats['attempts'] = 0;
         }
         if ($int === 1) {
@@ -600,6 +612,7 @@ class SyncController extends Controller
         } else {
             $names[] = $maybe_delimited_string;
         }
+
         return $names;
     }
 
@@ -623,6 +636,7 @@ class SyncController extends Controller
         $this->logEffectiveness(__FUNCTION__, 1);
         $guardian = YRCSGuardians::whereFirst($first)->whereLast($last)->first();
         $this->dl("Found one guardian named $first $last with family_id {$guardian->family_id}");
+
         return $guardian->family_id;
     }
 
@@ -639,9 +653,11 @@ class SyncController extends Controller
             $g = $guardians_collection->first();
             $this->dl("Found Guardian {$g->first} {$g->last}");
             $this->logEffectiveness(__FUNCTION__, 1);
-            return (int)$g->family_id;
+
+            return (int) $g->family_id;
         }
         $this->logEffectiveness(__FUNCTION__, -1);
+
         return false;
     }
 
@@ -654,15 +670,17 @@ class SyncController extends Controller
     {
         $guardians = YRCSGuardians::all(['first', 'last', 'family_id']);
         foreach ($guardians as $guardian) {
-            $name = $first . ' ' . $last;
-            $check_name = $guardian->first . ' ' . $guardian->last;
+            $name = $first.' '.$last;
+            $check_name = $guardian->first.' '.$guardian->last;
             if (levenshtein($name, $check_name) === 1) {
                 $this->dl("$name is one edit away from $check_name, returning {$guardian->family_id}");
                 $this->logEffectiveness(__FUNCTION__, 1);
+
                 return $guardian->family_id;
-            };
+            }
         }
         $this->logEffectiveness(__FUNCTION__, -1);
+
         return false;
     }
 
@@ -679,9 +697,11 @@ class SyncController extends Controller
         $this->dl("Found {$guardians_collection->count()} Guardians with last name $last, containing $first in first");
         if ($guardians_collection->count() === 1) {
             $this->logEffectiveness(__FUNCTION__, 1);
+
             return $guardians_collection->first()->family_id;
         }
         $this->logEffectiveness(__FUNCTION__, -1);
+
         return false;
     }
 
@@ -702,19 +722,21 @@ class SyncController extends Controller
                 $maybe[] = $guardian->family_id;
             }
             if (count($maybe)) {
-                $this->dl("Found " . count($maybe) . " possible familes");
+                $this->dl('Found '.count($maybe).' possible familes');
                 foreach ($maybe as $family_id) {
                     $this->dl("Checking if family {$guardian->last} has someone named $first");
                     $gs = YRCSGuardians::whereFamilyId($family_id)->whereFirst($first);
                     if ($gs->count() === 1) {
                         $this->dl("Family {$guardian->last} has someone named $first, returning $family_id");
                         $this->logEffectiveness(__FUNCTION__, 1);
+
                         return $family_id;
                     }
                 }
             }
         }
         $this->logEffectiveness(__FUNCTION__, -1);
+
         return false;
     }
 
@@ -731,11 +753,13 @@ class SyncController extends Controller
         if ($guardians_collection->count() === 1) {
             $this->logEffectiveness(__FUNCTION__, 1);
             $this->dl("Found match for {$guardians_collection->first()->first} {$guardians_collection->first()->last}, returning {$guardians_collection->first()->family_id}");
+
             return $guardians_collection->first()->family_id;
         } else {
-            $this->dl("Found " . $guardians_collection->count() . " matches");
+            $this->dl('Found '.$guardians_collection->count().' matches');
         }
         $this->logEffectiveness(__FUNCTION__, -1);
+
         return false;
     }
 
@@ -754,9 +778,11 @@ class SyncController extends Controller
             $found_first = $guardian->first;
             $this->dl("Found {$guardians_collection->count()} Guardian named $found_first $last, returning family_id $family_id");
             $this->logEffectiveness(__FUNCTION__, 1);
+
             return $family_id;
         }
         $this->logEffectiveness(__FUNCTION__, -1);
+
         return false;
     }
 
@@ -769,17 +795,19 @@ class SyncController extends Controller
     {
         $guardians = YRCSGuardians::whereLast($last)->get();
         foreach ($guardians as $guardian) {
-            $name = $first . ' ' . $last;
-            $check_name = $guardian->first . ' ' . $guardian->last;
+            $name = $first.' '.$last;
+            $check_name = $guardian->first.' '.$guardian->last;
             $distance = levenshtein(strtolower($name), strtolower($check_name));
             if ($distance <= 3) {
                 $this->dl("$check_name is $distance edits away from $name");
                 $this->dl("$check_name is close enough to $name");
                 $this->logEffectiveness(__FUNCTION__, 1);
+
                 return $guardian->family_id;
             }
         }
         $this->logEffectiveness(__FUNCTION__, -1);
+
         return false;
     }
 
@@ -795,7 +823,7 @@ class SyncController extends Controller
         foreach ($guardians as $guardian) {
             $distance_last = levenshtein(strtolower($last), strtolower($guardian->last));
             if ($distance_last <= 1) {
-//                $this->dl("{$guardian->last} is $distance_last edits away from $last");
+                //                $this->dl("{$guardian->last} is $distance_last edits away from $last");
                 $this->dl("{$guardian->first}'s last name {$guardian->last} is close at $distance_last edits, adding to maybe");
                 $maybe[] = $guardian;
             }
@@ -804,6 +832,7 @@ class SyncController extends Controller
         if (count($maybe) === 1) {
             $this->dl("Only one very close match, returning {$maybe[0]->family_id} for {$maybe[0]->first} {$maybe[0]->last} as a close-ish match for $first $last");
             $this->logEffectiveness(__FUNCTION__, 1);
+
             return $maybe[0]->family_id;
         }
 
@@ -813,11 +842,13 @@ class SyncController extends Controller
                 $this->dl("{$guardian->first} is $distance_first edits away from $first");
                 $this->dl("{$guardian->first} {$guardian->last} is close enough to $first $last at $distance_first away, returning {$guardian->family_id}");
                 $this->logEffectiveness(__FUNCTION__, 1);
+
                 return $guardian->family_id;
             }
         }
 
         $this->logEffectiveness(__FUNCTION__, -1);
+
         return false;
     }
 
@@ -828,15 +859,16 @@ class SyncController extends Controller
      */
     private function checkIfLastNameIsUnique($first, $last)
     {
-//        if ($last === 'Paige' || $last === 'Mark') return false;
+        //        if ($last === 'Paige' || $last === 'Mark') return false;
         $count = DB::select("select count(distinct family_id) as count from yrcs_guardians where last = '$last'");
-        $count = (int)$count[0]->count;
+        $count = (int) $count[0]->count;
         $this->dl("Found $count families with last name $last");
         if ($count === 1) {
             $family_id = YRCSGuardians::whereLast($last)->get(['family_id'])->first()->toArray();
             $family_id = $family_id['family_id'];
             $this->dl("Unique family name, returning family_id $family_id");
             $this->logEffectiveness(__FUNCTION__, 1);
+
             return $family_id;
         }
         $this->logEffectiveness(__FUNCTION__, -1);
@@ -850,23 +882,26 @@ class SyncController extends Controller
     private function getGuardiansWithSwappedFirstAndLast($first, $last)
     {
         /** @var Collection $guardians */
-        $guardians = YRCSGuardians::whereLast($first)->whereFirst($last)->get();;
+        $guardians = YRCSGuardians::whereLast($first)->whereFirst($last)->get();
         if ($guardians->count() === 1) {
             $this->logEffectiveness(__FUNCTION__, 1);
+
             return $guardians->first()->family_id;
         }
         foreach ($guardians as $guardian) {
-            $name = $first . ' ' . $last;
-            $check_name = $guardian->first . ' ' . $guardian->last;
+            $name = $first.' '.$last;
+            $check_name = $guardian->first.' '.$guardian->last;
             $distance = levenshtein(strtolower($name), strtolower($check_name));
             if ($distance <= 3) {
                 $this->dl("$check_name is $distance edits away from $name");
                 $this->dl("$check_name is close enough to $name");
                 $this->logEffectiveness(__FUNCTION__, 1);
+
                 return $guardian->family_id;
             }
         }
         $this->logEffectiveness(__FUNCTION__, -1);
+
         return false;
     }
 
@@ -880,9 +915,11 @@ class SyncController extends Controller
             $g = $guardians_collection->first();
             $this->dl("Found Guardian {$g->first} {$g->last}");
             $this->logEffectiveness(__FUNCTION__, 1);
-            return (int)$g->family_id;
+
+            return (int) $g->family_id;
         }
         $this->logEffectiveness(__FUNCTION__, -1);
+
         return false;
     }
 
@@ -901,7 +938,7 @@ class SyncController extends Controller
     {
         foreach ($log as $item) {
             try {
-                if (Family::whereId($item['family_id'])->count()) ;
+                if (Family::whereId($item['family_id'])->count());
                 $attributes = [
                     'hours' => $item['hours'],
                     'date' => $item['date'],
@@ -909,24 +946,20 @@ class SyncController extends Controller
                 ];
                 $log = TimeLog::create($attributes);
                 $log->save();
-
             } catch (Exception $e) {
-                $this->dl("Couldn't save time log because: " . $e->getMessage());
+                $this->dl("Couldn't save time log because: ".$e->getMessage());
             }
-
         }
     }
 
-    /**
-     *
-     */
+
     private function fakeRespondentList()
     {
         $r = [
             'success' => true, 'data' => [
                 'respondents' => [
-                    0 => ['date_modified' => '2015-10-28 18:04:15', 'respondent_id' => '4290426334',],
-                    1 => ['date_modified' => '2015-10-28 18:01:35', 'respondent_id' => '4290418693',],
+                    0 => ['date_modified' => '2015-10-28 18:04:15', 'respondent_id' => '4290426334'],
+                    1 => ['date_modified' => '2015-10-28 18:01:35', 'respondent_id' => '4290418693'],
                 ],
                 'page' => 1,
                 'page_size' => 1000,
@@ -934,9 +967,7 @@ class SyncController extends Controller
         ];
     }
 
-    /**
-     *
-     */
+
     private function getFakeResponses()
     {
         $r = ['success' => true,
@@ -946,21 +977,21 @@ class SyncController extends Controller
                     'questions' => [
                         0 => [
                             'answers' => [
-                                0 => ['text' => 'Laura', 'row' => '9112913868',],
-                                1 => ['text' => 'Hazelton', 'row' => '9112913869',],
-                                2 => ['text' => 'Hazelton', 'row' => '9112913870',],
+                                0 => ['text' => 'Laura', 'row' => '9112913868'],
+                                1 => ['text' => 'Hazelton', 'row' => '9112913869'],
+                                2 => ['text' => 'Hazelton', 'row' => '9112913870'],
                             ],
                             'question_id' => '817218761',
                         ],
                         1 => [
                             'answers' => [
-                                0 => ['row' => '9112913879',],
+                                0 => ['row' => '9112913879'],
                             ],
                             'question_id' => '817218762',
                         ],
                         2 => [
                             'answers' => [
-                                0 => ['row' => '9112913903',],
+                                0 => ['row' => '9112913903'],
                             ],
                             'question_id' => '817218764',
                         ],
@@ -990,6 +1021,7 @@ class SyncController extends Controller
                 }
             }
         }
+
         return $name;
     }
 }

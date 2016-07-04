@@ -6,9 +6,7 @@ use App\TimeLog;
 use App\YRCSFamilies;
 use App\YRCSGuardians;
 use App\YRCSStudents;
-use Gbrock\Table\Table;
 use Illuminate\Http\Request;
-use App\Http\Requests;
 use App\Http\Controllers\Controller;
 
 class FamilyController extends Controller
@@ -58,7 +56,6 @@ class FamilyController extends Controller
             'students' => YRCSStudents::whereFamilyId($id)->paginate(),
             'hours' => TimeLog::whereFamilyId($id)->paginate(),
         ]);
-
     }
 
     /**
