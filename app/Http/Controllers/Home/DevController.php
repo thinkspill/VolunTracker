@@ -2,25 +2,9 @@
 
 namespace App\Http\Controllers\Home;
 
-use App\Family;
 use App\Http\Controllers\Controller;
-use App\TimeLog;
-use App\YRCSFamilies;
-use App\YRCSGuardians;
-use App\YRCSStudents;
-use App\YubaRiver;
 use Ascension\SurveyMonkey;
-use DB;
-use Exception;
-use Fhaculty\Graph\Graph;
-use Gbrock\Table\Table;
-use Graphp\GraphViz\GraphViz;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\QueryException;
-use League\Csv\Reader;
-use League\Period\Period;
 use Monolog\ErrorHandler;
-use Monolog\Formatter\HtmlFormatter;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
 use Monolog\Logger;
@@ -28,7 +12,6 @@ use ref;
 use Stash\Driver\FileSystem;
 use Stash\Pool;
 use Stiphle\Throttle\LeakyBucket;
-use Symfony\Component\Debug\Exception\FatalErrorException;
 
 class DevController extends Controller
 {
@@ -37,6 +20,7 @@ class DevController extends Controller
     private $allSurveyIDs = [];
     private $SM, $pool;
     private $throttle, $throttle_id;
+
     public function __construct()
     {
         ref::config('expLvl', -1);
@@ -47,14 +31,14 @@ class DevController extends Controller
 
         $this->allSurveyIDs = [
             $this->volunteerHourSurveyId,
-            $this->volunteerHourSurveyId2
+            $this->volunteerHourSurveyId2,
         ];
 
         $this->throttle = new LeakyBucket;
         $this->throttle_id = 'sm';
 
 
-        if (!ini_get('auto_detect_line_endings')) {
+        if (! ini_get('auto_detect_line_endings')) {
             ini_set('auto_detect_line_endings', '1');
         }
 
@@ -80,12 +64,12 @@ class DevController extends Controller
     private function surveyMonkeyGetSurveyDetails($surveyID)
     {
         $this->throttleSM();
+
         return $this->SM->getSurveyDetails($surveyID)['data'];
     }
 
     private function throttleSM()
     {
-        $this->throttle->throttle($this->throttle_id, 2, 2000);;
+        $this->throttle->throttle($this->throttle_id, 2, 2000);
     }
-
 }

@@ -1,4 +1,5 @@
 <?php
+
 namespace App;
 
 trait DebugDumper
@@ -10,7 +11,7 @@ trait DebugDumper
      */
     public function dl($debugdata, $file = __FILE__, $line = __LINE__)
     {
-//        r(['DebugLog: ' . basename($file) . ':' . $line => $debugdata]);
+        //        r(['DebugLog: ' . basename($file) . ':' . $line => $debugdata]);
         if (is_string($debugdata)) {
             r(['DebugLog' => $debugdata]);
         } else {

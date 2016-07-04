@@ -19,7 +19,7 @@ class CreatePeopleTable extends Migration
             $table->unsignedInteger('family_id');
             $table->string('name');
             $table->enum('relationship', [
-                'mother', 'father', 'son', 'daughter', 'grandmother', 'grandfather', 'aunt', 'uncle', 'cousin', 'guardian'
+                'mother', 'father', 'son', 'daughter', 'grandmother', 'grandfather', 'aunt', 'uncle', 'cousin', 'guardian',
             ]);
         });
     }

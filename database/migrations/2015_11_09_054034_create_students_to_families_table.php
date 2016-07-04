@@ -19,7 +19,6 @@ class CreateStudentsToFamiliesTable extends Migration
             $table->foreign('family_id')->references('id')->on('yrcs_families');
             $table->foreign('student_id')->references('id')->on('yrcs_students');
         });
-
     }
 
     /**

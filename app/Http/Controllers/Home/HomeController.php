@@ -13,7 +13,6 @@ use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
 use Monolog\Logger;
 use ref;
-use Stash\Driver\FileSystem;
 
 class HomeController extends Controller
 {
@@ -22,7 +21,7 @@ class HomeController extends Controller
         ref::config('expLvl', -1);
         ref::config('maxDepth', 0);
 
-        if (!ini_get('auto_detect_line_endings')) {
+        if (! ini_get('auto_detect_line_endings')) {
             ini_set('auto_detect_line_endings', '1');
         }
 
@@ -41,7 +40,7 @@ class HomeController extends Controller
         $familyCount = YRCSFamilies::all()->count();
 
 //        $totalHours = TimeLog::all()->sum('hours');
-        $totalHours = (int)Db::table('time_logs')->whereBetween('date', ['2015-08-01', '2015-12-01'])->sum('hours');
+        $totalHours = (int) Db::table('time_logs')->whereBetween('date', ['2015-08-01', '2015-12-01'])->sum('hours');
         $expectedMonthlyHours = 5 * $familyCount;
         $totalExpectedHours = $this->calcExpectedHours($expectedMonthlyHours);
 
@@ -71,12 +70,14 @@ class HomeController extends Controller
     {
         $monthsElapsed = $this->monthsElapsed();
         $totalExpectedHours = $expectedMonthlyHours * $monthsElapsed;
+
         return $totalExpectedHours;
     }
 
     private function monthsElapsed()
     {
         $m = new ElapsedMonths();
+
         return $m->elapsed();
     }
 }

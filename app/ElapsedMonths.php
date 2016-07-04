@@ -8,7 +8,7 @@ class ElapsedMonths
 {
     public function elapsed()
     {
-//        $period = new Period('2015-08-01', '2016-11-30');
+        //        $period = new Period('2015-08-01', '2016-11-30');
 //        $now = date('F, Y');
 //        $months_elapsed = 0;
 //        $c = 0;

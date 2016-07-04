@@ -11,7 +11,6 @@ use Monolog\ErrorHandler;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
 use Monolog\Logger;
-use Stash\Driver\FileSystem;
 
 class DiscoverController extends Controller
 {
@@ -47,7 +46,6 @@ class DiscoverController extends Controller
 //        \imagepng($image);
 //        \imagedestroy($image);
 //        exit;
-
     }
 
     /**
@@ -58,6 +56,7 @@ class DiscoverController extends Controller
     {
         $family_unit['guardians'] = [$guardian->id];
         $family_unit['students'] = [];
+
         return $family_unit;
     }
 
@@ -69,10 +68,11 @@ class DiscoverController extends Controller
      */
     private function addInitialGuardian($guardian, $graph, $school)
     {
-        $guardian_name = $guardian->first . ' ' . $guardian->last;
+        $guardian_name = $guardian->first.' '.$guardian->last;
         $school['guardians'][$guardian->id] = $graph->createVertex($guardian_name, true);
         $school['guardians'][$guardian->id]->setAttribute('graphviz.color', 'red');
-        return array($guardian_name, $school);
+
+        return [$guardian_name, $school];
     }
 
     /**
@@ -85,15 +85,16 @@ class DiscoverController extends Controller
      */
     private function findThisGuardiansStudents($student, $family_unit, $graph, $school, $guardian)
     {
-        if (!in_array($student->id, $family_unit['students'])) {
+        if (! in_array($student->id, $family_unit['students'])) {
             $family_unit['students'][] = $student->id;
         }
-        $student_name = $student->first . ' ' . $student->last;
+        $student_name = $student->first.' '.$student->last;
         $school['students'][$student->id] = $graph->createVertex($student_name, true);
         $school['students'][$student->id]->setAttribute('graphviz.color', 'green');
         $edge = $school['guardians'][$guardian->id]->createEdgeTo($school['students'][$student->id]);
         $this->setRelationshipEdgeColor($guardian, $edge);
-        return array($family_unit, $school);
+
+        return [$family_unit, $school];
     }
 
     /**
@@ -141,11 +142,11 @@ class DiscoverController extends Controller
     {
         $other_guardians = $student->guardians()->get();
         foreach ($other_guardians as $other_guardian) {
-            $gname = $other_guardian->first . ' ' . $other_guardian->last;
+            $gname = $other_guardian->first.' '.$other_guardian->last;
             if ($gname === $guardian_name) {
                 continue;
             }
-            if (!in_array($other_guardian->id, $family_unit['guardians'])) {
+            if (! in_array($other_guardian->id, $family_unit['guardians'])) {
                 $family_unit['guardians'][] = $other_guardian->id;
             }
             $school['guardians'][$other_guardian->id] = $graph->createVertex($gname, true);
@@ -153,7 +154,8 @@ class DiscoverController extends Controller
             $edge = $school['guardians'][$other_guardian->id]->createEdgeTo($school['students'][$student->id]);
             $this->setRelationshipEdgeColor($other_guardian, $edge);
         }
-        return array($family_unit, $school);
+
+        return [$family_unit, $school];
     }
 
     private function saveFamilyUnit($family_unit)
@@ -162,14 +164,14 @@ class DiscoverController extends Controller
         foreach ($family_unit['guardians'] as $g) {
             /** @var YRCSGuardians $guardian */
             $guardian = YRCSGuardians::find($g);
-            if (!isset($guardian->family()->getResults()->id)) {
+            if (! isset($guardian->family()->getResults()->id)) {
                 continue;
             } else {
                 $fam = $guardian->family()->getResults()->id;
             }
         }
 
-        if (!$fam) {
+        if (! $fam) {
             $fam = YRCSFamilies::create();
             $fam->save();
         }
@@ -177,7 +179,7 @@ class DiscoverController extends Controller
         foreach ($family_unit['guardians'] as $g) {
             /** @var YRCSGuardians $guardian */
             $guardian = YRCSGuardians::find($g);
-            if (!isset($guardian->family()->getResults()->id)) {
+            if (! isset($guardian->family()->getResults()->id)) {
                 $guardian->family()->associate($fam);
                 $guardian->save();
             }
@@ -185,7 +187,7 @@ class DiscoverController extends Controller
         foreach ($family_unit['students'] as $s) {
             /** @var YRCSStudents $student */
             $student = YRCSStudents::find($s);
-            if (!isset($student->family()->getResults()->id)) {
+            if (! isset($student->family()->getResults()->id)) {
                 $student->family()->associate($fam);
                 $student->save();
             }
